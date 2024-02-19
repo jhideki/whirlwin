@@ -1,0 +1,4 @@
+1. initialize componenets
+2. event loop
+3. action handling
+4. update windows
