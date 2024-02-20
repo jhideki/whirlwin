@@ -1,60 +1,46 @@
-mod win_api {
-    pub mod window_manager;
-}
-mod callbacks;
-mod handle;
-use callbacks::{keyboard_callback, shell_hook_callback};
-use std::{io::Write, ptr::null_mut};
+mod window;
+mod window_manager;
 
-use handle::Handle;
-use std::io;
-use win_api::window_manager;
-use winapi::um::winuser;
+use std::ptr::null_mut;
+use winapi::um::winuser::VK_ESCAPE;
+use winapi::um::winuser::WM_HOTKEY;
 
-fn main() {
-    let mut windows: Vec<Handle> = Vec::new();
-    unsafe { windows = window_manager::get_windows() }
-    for window in &windows {
-        window.print_title();
-    }
+use std::io::Error;
+use winapi::um::winuser::{GetMessageW, RegisterHotKey, UnregisterHotKey, MSG};
+use window_manager::WindowManager;
 
-    match window_manager::switch_to_window(windows[1].hwnd) {
-        Ok(()) => windows[1].print_title(),
-        Err(err) => eprintln!("Error: {}", err),
-    }
-
+const EXIT: i32 = 1;
+const SWITCH_WINDOW: i32 = 2;
+const KEY_H: u32 = 0x48;
+const MOD_ALT: u32 = 0x0001;
+fn main() -> Result<(), Error> {
+    let mut window_manager = WindowManager::new();
+    window_manager.set_windows();
     unsafe {
-        let keyboard_hook = winuser::SetWindowsHookExW(
-            winuser::WH_KEYBOARD,
-            Some(keyboard_callback),
-            null_mut(),
-            0,
-        );
-
-        if keyboard_hook.is_null() {
-            println!("error in keyboard hook");
-        }
-        //Listen for creations of windows
-        let shell_hook =
-            winuser::SetWindowsHookExW(winuser::WH_SHELL, Some(shell_hook_callback), null_mut(), 0);
-
-        if shell_hook.is_null() {
-            println!("error with shell hook");
+        if RegisterHotKey(null_mut(), EXIT, 0, VK_ESCAPE as u32) == 0 {
+            return Err(Error::last_os_error());
         }
 
-        loop {
-            println!("listening");
-            io::stdout().flush().expect("failed to flush stoud");
-            let mut input = String::new();
-            io::stdin().read_line(&mut input);
-            if input.trim() == "exit" {
-                println!("exiting");
-                break;
+        if RegisterHotKey(null_mut(), SWITCH_WINDOW, MOD_ALT, KEY_H as u32) == 0 {
+            return Err(Error::last_os_error());
+        }
+        let mut msg: MSG = Default::default();
+        while GetMessageW(&mut msg, null_mut(), 0, 0) != 0 {
+            if msg.message == WM_HOTKEY {
+                match msg.wParam as i32 {
+                    EXIT => break,
+                    SWITCH_WINDOW => match window_manager.switch_to_window() {
+                        Ok(()) => {
+                            println!("Switch windows");
+                        }
+                        Err(err) => eprintln!("Error: {}", err),
+                    },
+                    _ => println!("idk bru"),
+                }
             }
         }
-
-        //Main event loop
-        winuser::UnhookWindowsHookEx(keyboard_hook);
-        winuser::UnhookWindowsHookEx(shell_hook);
+        UnregisterHotKey(null_mut(), EXIT);
+        UnregisterHotKey(null_mut(), SWITCH_WINDOW);
     }
+    Ok(())
 }

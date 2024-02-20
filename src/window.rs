@@ -1,12 +1,17 @@
-use winapi::shared::windef::HWND;
-use winapi::um::winuser::{GetWindowTextLengthW, GetWindowTextW};
-pub struct Handle {
+use winapi::shared::windef::{HWND, RECT};
+use winapi::um::winuser::{GetWindowRect, GetWindowTextLengthW, GetWindowTextW};
+pub struct Window {
     pub hwnd: HWND,
+    pub rect: RECT,
 }
 
-impl Handle {
-    fn new(hwnd: HWND) -> Self {
-        Self { hwnd }
+impl Window {
+    pub fn new(hwnd: HWND) -> Self {
+        let mut rect: RECT = RECT::default();
+        unsafe {
+            GetWindowRect(hwnd, &mut rect);
+        }
+        Self { hwnd, rect }
     }
 
     pub fn get_title(&self) -> Option<String> {
