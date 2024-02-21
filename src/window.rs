@@ -1,17 +1,49 @@
 use winapi::shared::windef::{HWND, RECT};
-use winapi::um::winuser::{GetWindowRect, GetWindowTextLengthW, GetWindowTextW};
+use winapi::um::winuser::{
+    GetWindowInfo, GetWindowPlacement, GetWindowRect, GetWindowTextLengthW, GetWindowTextW,
+    WINDOWINFO, WINDOWPLACEMENT,
+};
+// Used to store window rect without padding
+pub struct Rect {
+    pub right: i32,
+    pub left: i32,
+    pub top: i32,
+    pub bottom: i32,
+}
 pub struct Window {
     pub hwnd: HWND,
-    pub rect: RECT,
+    pub rect: Rect,
+    pub placement: WINDOWPLACEMENT,
+    pub info: WINDOWINFO,
 }
 
 impl Window {
     pub fn new(hwnd: HWND) -> Self {
+        let mut placement: WINDOWPLACEMENT = WINDOWPLACEMENT::default();
+        let mut info: WINDOWINFO = WINDOWINFO::default();
+        unsafe {
+            GetWindowPlacement(hwnd, &mut placement);
+            GetWindowInfo(hwnd, &mut info);
+        }
+        Self {
+            hwnd,
+            rect: Self::set_rect(hwnd, info),
+            placement,
+            info,
+        }
+    }
+
+    fn set_rect(hwnd: HWND, info: WINDOWINFO) -> Rect {
         let mut rect: RECT = RECT::default();
         unsafe {
             GetWindowRect(hwnd, &mut rect);
         }
-        Self { hwnd, rect }
+        Rect {
+            right: rect.right - info.cxWindowBorders as i32,
+            left: rect.left + info.cxWindowBorders as i32,
+            top: rect.top - info.cxWindowBorders as i32,
+            bottom: rect.bottom + info.cxWindowBorders as i32,
+        }
     }
 
     pub fn get_title(&self) -> Option<String> {

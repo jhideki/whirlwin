@@ -1,11 +1,15 @@
+use std::ptr::null_mut;
+
 use crate::window::Window;
 
 use winapi::shared::minwindef::LPARAM;
 use winapi::shared::windef::HWND;
 use winapi::um::winnt::WCHAR;
 use winapi::um::winuser::{
-    EnumWindows, GetForegroundWindow, GetWindowTextW, IsWindowVisible, SetForegroundWindow,
+    EnumWindows, GetForegroundWindow, GetWindow, GetWindowTextW, IsWindowVisible,
+    SetForegroundWindow, SW_HIDE,
 };
+
 pub struct WindowManager {
     pub current: Window,
     pub left: Option<Window>,
@@ -30,10 +34,60 @@ impl WindowManager {
     }
 
     fn set_window(&mut self, window: Window) {
-        if window.rect.left < self.current.rect.left {
-            println!("left window:");
-            window.print_title();
+        window.print_title();
+        println!("flags {}", window.placement.flags);
+        println!("dwStyle {}", window.info.dwStyle);
+        println!("creator version{}", window.info.wCreatorVersion);
+        println!("atom {}", window.info.atomWindowType);
+        println!("visibility {}", unsafe { IsWindowVisible(window.hwnd) });
+        println!("border width {}", window.info.cxWindowBorders);
+        println!("cmd {}", window.placement.showCmd);
+        println!("left {}", window.rect.left);
+        println!("right {}", window.rect.right);
+        println!("bottom {}", window.rect.bottom);
+        println!("top {}", window.rect.top);
+        println!("");
+        if self.left.is_none() && window.rect.right <= self.current.rect.left {
             self.left = Some(window);
+        } else if self.right.is_none() && window.rect.left >= self.current.rect.right {
+            self.right = Some(window);
+        } else if self.above.is_none() && window.rect.bottom >= self.current.rect.top {
+            self.above = Some(window);
+        } else if self.below.is_none() && window.rect.top <= self.current.rect.bottom {
+            self.below = Some(window);
+        } else if self.behind.is_none() && window.rect.left >= self.current.rect.left {
+            self.behind = Some(window)
+        }
+    }
+    pub fn print_windows(&mut self) {
+        print!("left");
+        match &self.left {
+            Some(window) => window.print_title(),
+            None => println!("left window does not exist"),
+        }
+
+        print!("right");
+        match &self.right {
+            Some(window) => window.print_title(),
+            None => println!("left window does not exist"),
+        }
+
+        print!("above");
+        match &self.above {
+            Some(window) => window.print_title(),
+            None => println!("left window does not exist"),
+        }
+
+        print!("below");
+        match &self.below {
+            Some(window) => window.print_title(),
+            None => println!("left window does not exist"),
+        }
+
+        print!("behind");
+        match &self.behind {
+            Some(window) => window.print_title(),
+            None => println!("left window does not exist"),
         }
     }
 
@@ -64,7 +118,9 @@ unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> i32 {
 
     if length > 0 && IsWindowVisible(hwnd) != 0 {
         let window = Window::new(hwnd);
-        window_manager.set_window(window);
+        if window.placement.showCmd != SW_HIDE as u32 {
+            window_manager.set_window(window);
+        }
     }
     1
 }
