@@ -16,6 +16,7 @@ const MOD_ALT: u32 = 0x0001;
 fn main() -> Result<(), Error> {
     let mut window_manager = WindowManager::new();
     window_manager.set_windows();
+    // window_manager.get_all_windows();
     window_manager.print_windows();
     unsafe {
         if RegisterHotKey(null_mut(), EXIT, 0, VK_ESCAPE as u32) == 0 {
@@ -30,7 +31,7 @@ fn main() -> Result<(), Error> {
             if msg.message == WM_HOTKEY {
                 match msg.wParam as i32 {
                     EXIT => break,
-                    SWITCH_WINDOW => match window_manager.switch_to_window() {
+                    SWITCH_WINDOW => match window_manager.switch_to_left() {
                         Ok(()) => {
                             println!("Switch windows");
                         }

@@ -1,24 +1,29 @@
+use std::clone;
+
 use winapi::shared::windef::{HWND, RECT};
 use winapi::um::winuser::{
     GetWindowInfo, GetWindowPlacement, GetWindowRect, GetWindowTextLengthW, GetWindowTextW,
     WINDOWINFO, WINDOWPLACEMENT,
 };
 // Used to store window rect without padding
+#[derive(Clone)]
 pub struct Rect {
     pub right: i32,
     pub left: i32,
     pub top: i32,
     pub bottom: i32,
 }
+#[derive(Clone)]
 pub struct Window {
     pub hwnd: HWND,
     pub rect: Rect,
     pub placement: WINDOWPLACEMENT,
     pub info: WINDOWINFO,
+    pub order: i32, // foreground window has order of 0
 }
 
 impl Window {
-    pub fn new(hwnd: HWND) -> Self {
+    pub fn new(hwnd: HWND, order: i32) -> Self {
         let mut placement: WINDOWPLACEMENT = WINDOWPLACEMENT::default();
         let mut info: WINDOWINFO = WINDOWINFO::default();
         unsafe {
@@ -30,6 +35,7 @@ impl Window {
             rect: Self::set_rect(hwnd, info),
             placement,
             info,
+            order,
         }
     }
 
@@ -41,8 +47,8 @@ impl Window {
         Rect {
             right: rect.right - info.cxWindowBorders as i32,
             left: rect.left + info.cxWindowBorders as i32,
-            top: rect.top - info.cxWindowBorders as i32,
-            bottom: rect.bottom + info.cxWindowBorders as i32,
+            top: rect.top + info.cxWindowBorders as i32,
+            bottom: rect.bottom - info.cxWindowBorders as i32,
         }
     }
 
