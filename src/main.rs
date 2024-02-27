@@ -1,48 +1,33 @@
+mod keybinds;
 mod window;
 mod window_manager;
 
-use std::ptr::null_mut;
-use winapi::um::winuser::VK_ESCAPE;
-use winapi::um::winuser::WM_HOTKEY;
-
+use keybinds::{handle_hotkey, register_hotkeys, unregister_hotkeys};
 use std::io::Error;
+use std::ptr::null_mut;
+use winapi::um::winuser::WM_HOTKEY;
 use winapi::um::winuser::{GetMessageW, RegisterHotKey, UnregisterHotKey, MSG};
 use window_manager::WindowManager;
 
-const EXIT: i32 = 1;
-const SWITCH_WINDOW: i32 = 2;
-const KEY_H: u32 = 0x48;
-const MOD_ALT: u32 = 0x0001;
 fn main() -> Result<(), Error> {
+    let mut leader_pressed = false;
     let mut window_manager = WindowManager::new();
     window_manager.set_windows();
-    // window_manager.get_all_windows();
-    window_manager.print_windows();
+    unregister_hotkeys();
+    match register_hotkeys() {
+        Ok(()) => println!("Hotkeys registerd!"),
+        Err(e) => println!("Failed to registrer hotkeys: {}", e),
+    }
     unsafe {
-        if RegisterHotKey(null_mut(), EXIT, 0, VK_ESCAPE as u32) == 0 {
-            return Err(Error::last_os_error());
-        }
-
-        if RegisterHotKey(null_mut(), SWITCH_WINDOW, MOD_ALT, KEY_H as u32) == 0 {
-            return Err(Error::last_os_error());
-        }
         let mut msg: MSG = Default::default();
         while GetMessageW(&mut msg, null_mut(), 0, 0) != 0 {
+            println!("leader: {}", leader_pressed);
             if msg.message == WM_HOTKEY {
-                match msg.wParam as i32 {
-                    EXIT => break,
-                    SWITCH_WINDOW => match window_manager.switch_to_left() {
-                        Ok(()) => {
-                            println!("Switch windows");
-                        }
-                        Err(err) => eprintln!("Error: {}", err),
-                    },
-                    _ => println!("idk bru"),
-                }
+                leader_pressed =
+                    handle_hotkey(msg.wParam as i32, &mut window_manager, leader_pressed);
             }
         }
-        UnregisterHotKey(null_mut(), EXIT);
-        UnregisterHotKey(null_mut(), SWITCH_WINDOW);
     }
+    unregister_hotkeys();
     Ok(())
 }

@@ -1,5 +1,3 @@
-use std::ptr::null_mut;
-
 use crate::window::Window;
 
 use winapi::shared::minwindef::LPARAM;
@@ -35,16 +33,6 @@ impl WindowManager {
     }
 
     fn set_window(&mut self, window: Window) {
-        window.print_title();
-        let mut class_name: [u16; 256] = [0; 256];
-
-        unsafe {
-            let len = GetClassNameW(window.hwnd, class_name.as_mut_ptr(), 256);
-            let class = String::from_utf16_lossy(&class_name[..len as usize]);
-            println!("class name {}", class);
-        }
-
-        Self::print_window_info(&window);
         if self.left.is_none() && window.rect.right <= self.current.rect.left {
             self.left = Some(window);
         } else if self.right.is_none() && window.rect.left >= self.current.rect.right {
@@ -53,8 +41,9 @@ impl WindowManager {
             self.above = Some(window);
         } else if self.below.is_none() && window.rect.top >= self.current.rect.bottom {
             self.below = Some(window);
-        } else if self.behind.is_none() && (window.rect.left >= self.current.rect.left)
-            || window.rect.right <= self.current.rect.right
+        } else if self.behind.is_none()
+            && (window.rect.left >= self.current.rect.left
+                || window.rect.right <= self.current.rect.right)
         {
             self.behind = Some(window)
         }
@@ -75,34 +64,43 @@ impl WindowManager {
         println!("");
     }
     pub fn print_windows(&mut self) {
+        println!("current");
+        &self.current.print_title();
+        println!("");
+
         print!("left");
         match &self.left {
             Some(window) => window.print_title(),
             None => println!("left window does not exist"),
         }
+        println!("");
 
+        println!("");
         print!("right");
         match &self.right {
             Some(window) => window.print_title(),
-            None => println!("left window does not exist"),
+            None => println!("window does not exist"),
         }
 
+        println!("");
         print!("above");
         match &self.above {
             Some(window) => window.print_title(),
-            None => println!("left window does not exist"),
+            None => println!(" window does not exist"),
         }
 
+        println!("");
         print!("below");
         match &self.below {
             Some(window) => window.print_title(),
-            None => println!("left window does not exist"),
+            None => println!(" window does not exist"),
         }
 
+        println!("");
         print!("behind");
         match &self.behind {
             Some(window) => window.print_title(),
-            None => println!("left window does not exist"),
+            None => println!("window does not exist"),
         }
     }
 
@@ -110,6 +108,7 @@ impl WindowManager {
         unsafe {
             EnumWindows(Some(enum_windows_proc), self as *mut _ as LPARAM);
         }
+        Self::print_windows(self);
     }
 
     pub fn get_all_windows(&mut self) {
@@ -124,38 +123,19 @@ impl WindowManager {
             order += 1;
         }
     }
-
-    pub fn switch_to_left(&mut self) -> Result<(), String> {
-        match &self.left {
-            Some(window) => unsafe {
-                if SetForegroundWindow(window.hwnd) == 0 {
-                    Err("Failed to switch windows".to_string())
-                } else {
-                    self.current = window.clone();
-                    Ok(())
-                }
-            },
-            None => Err("Left window does not exist".to_string()),
-        }
-    }
 }
 
+#[macro_export]
 macro_rules! switch_to_direction {
-    ($self:ident, $direction:ident) => {
-
-    pub fn switch_window(&mut $self) -> Result<(), String> {
-        match &$self.$direction{
-            Some(window) => unsafe {
-                if SetForegroundWindow(window.hwnd) == 0 {
-                    Err("Failed to switch windows".to_string())
-                } else {
-                    self.current = window.clone();
-                    Ok(())
-                }
-            },
-            None => Err("Window does not exist".to_string()),
+    ($window_manager:expr, $direction:ident) => {
+        if let Some(window) = $window_manager.$direction.take() {
+            if SetForegroundWindow(window.hwnd) == 0 {
+                println!("Failed to switch windows");
+            }
+            $window_manager.current = window;
+            $window_manager.set_windows();
+            println!("Switch to window {}", stringify!($direction));
         }
-    }
     };
 }
 
@@ -170,8 +150,6 @@ unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> i32 {
         if window.placement.showCmd != SW_HIDE as u32
             && window.placement.showCmd != SW_SHOWMINIMIZED as u32
         {
-            println!("showcmd {}", window.placement.showCmd);
-            println!("sw_minimize {}", SW_MINIMIZE);
             window_manager.set_window(window);
         }
     }
