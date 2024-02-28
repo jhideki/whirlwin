@@ -21,7 +21,6 @@ fn main() -> Result<(), Error> {
     unsafe {
         let mut msg: MSG = Default::default();
         while GetMessageW(&mut msg, null_mut(), 0, 0) != 0 {
-            println!("leader: {}", leader_pressed);
             if msg.message == WM_HOTKEY {
                 leader_pressed =
                     handle_hotkey(msg.wParam as i32, &mut window_manager, leader_pressed);

@@ -1,9 +1,9 @@
 use std::clone;
 
-use winapi::shared::windef::{HWND, RECT};
+use winapi::shared::windef::{HMONITOR, HWND, RECT};
 use winapi::um::winuser::{
     GetWindowInfo, GetWindowPlacement, GetWindowRect, GetWindowTextLengthW, GetWindowTextW,
-    WINDOWINFO, WINDOWPLACEMENT,
+    MonitorFromWindow, MONITOR_DEFAULTTOPRIMARY, WINDOWINFO, WINDOWPLACEMENT,
 };
 // Used to store window rect without padding
 #[derive(Clone)]
@@ -20,6 +20,7 @@ pub struct Window {
     pub placement: WINDOWPLACEMENT,
     pub info: WINDOWINFO,
     pub order: i32, // foreground window has order of 0
+    pub monitor: HMONITOR,
 }
 
 impl Window {
@@ -36,6 +37,7 @@ impl Window {
             placement,
             info,
             order,
+            monitor: unsafe { MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY) },
         }
     }
 

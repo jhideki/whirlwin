@@ -15,13 +15,14 @@ const SWITCH_ABOVE: i32 = 4;
 const SWITCH_BELOW: i32 = 5;
 const SWITCH_BEHIND: i32 = 6;
 const LEADER: i32 = 7;
-
+const CLOSE_WINDOW: i32 = 8;
 //Keycode
 const KEY_H: i32 = 0x48;
 const KEY_L: i32 = 0x4C;
 const KEY_J: i32 = 0x4A;
 const KEY_K: i32 = 0x4B;
 const KEY_N: i32 = 0x4E;
+const KEY_D: i32 = 0x44;
 
 pub fn handle_hotkey(
     wparam: i32,
@@ -29,7 +30,6 @@ pub fn handle_hotkey(
     mut leader_pressed: bool,
 ) -> bool {
     if !leader_pressed && wparam == LEADER {
-        println!("leader pressed");
         leader_pressed = true;
     } else if leader_pressed {
         match wparam {
@@ -39,6 +39,7 @@ pub fn handle_hotkey(
             SWITCH_ABOVE => unsafe { switch_to_direction!(window_manager, above) },
             SWITCH_BELOW => unsafe { switch_to_direction!(window_manager, below) },
             SWITCH_BEHIND => unsafe { switch_to_direction!(window_manager, behind) },
+            CLOSE_WINDOW => window_manager.close_window(),
             _ => println!("idk bru"),
         }
         leader_pressed = false;
@@ -80,6 +81,11 @@ pub fn register_hotkeys() -> Result<(), Error> {
             println!("failed to register N");
             return Err(Error::last_os_error());
         }
+
+        if RegisterHotKey(null_mut(), CLOSE_WINDOW, 0, KEY_D as u32) == 0 {
+            println!("failed to register D");
+            return Err(Error::last_os_error());
+        }
     }
     Ok(())
 }
@@ -92,6 +98,7 @@ pub fn unregister_hotkeys() {
         UnregisterHotKey(null_mut(), SWITCH_ABOVE);
         UnregisterHotKey(null_mut(), SWITCH_BELOW);
         UnregisterHotKey(null_mut(), SWITCH_BEHIND);
+        UnregisterHotKey(null_mut(), CLOSE_WINDOW);
         UnregisterHotKey(null_mut(), LEADER);
     }
 }

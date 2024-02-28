@@ -4,8 +4,9 @@ use winapi::shared::minwindef::LPARAM;
 use winapi::shared::windef::HWND;
 use winapi::um::winnt::WCHAR;
 use winapi::um::winuser::{
-    EnumWindows, GetClassNameW, GetForegroundWindow, GetWindow, GetWindowTextW, IsWindowVisible,
-    SetForegroundWindow, GW_HWNDNEXT, SW_HIDE, SW_MINIMIZE, SW_SHOWMINIMIZED,
+    CloseWindow, EnumWindows, GetClassNameW, GetForegroundWindow, GetWindow, GetWindowTextW,
+    IsWindowVisible, SendMessageW, SetForegroundWindow, GW_HWNDNEXT, SW_HIDE, SW_MINIMIZE,
+    SW_SHOWMINIMIZED, WM_CLOSE,
 };
 
 pub struct WindowManager {
@@ -32,6 +33,7 @@ impl WindowManager {
         }
     }
 
+    //todo: fix set behind. Should just check if window is in the same screen
     fn set_window(&mut self, window: Window) {
         if self.left.is_none() && window.rect.right <= self.current.rect.left {
             self.left = Some(window);
@@ -41,13 +43,22 @@ impl WindowManager {
             self.above = Some(window);
         } else if self.below.is_none() && window.rect.top >= self.current.rect.bottom {
             self.below = Some(window);
-        } else if self.behind.is_none()
-            && (window.rect.left >= self.current.rect.left
-                || window.rect.right <= self.current.rect.right)
-        {
+        } else if self.behind.is_none() && window.monitor == self.current.monitor {
             self.behind = Some(window)
         }
     }
+
+    pub fn close_window(&mut self) {
+        unsafe {
+            SendMessageW(self.current.hwnd, WM_CLOSE, 0, 0);
+        }
+        if let Some(window) = &self.behind {
+            self.current = window.to_owned();
+            self.behind = None;
+            self.set_windows();
+        }
+    }
+
     fn print_window_info(window: &Window) {
         println!("order: {}", window.order);
         println!("flags {}", window.placement.flags);
@@ -111,6 +122,14 @@ impl WindowManager {
         Self::print_windows(self);
     }
 
+    pub fn clear_windows(&mut self) {
+        self.left = None;
+        self.right = None;
+        self.above = None;
+        self.below = None;
+        self.behind = None;
+    }
+
     pub fn get_all_windows(&mut self) {
         let mut hwnd = unsafe { GetWindow(self.current.hwnd, GW_HWNDNEXT) };
         let mut order = 0;
@@ -132,6 +151,7 @@ macro_rules! switch_to_direction {
             if SetForegroundWindow(window.hwnd) == 0 {
                 println!("Failed to switch windows");
             }
+            $window_manager.clear_windows();
             $window_manager.current = window;
             $window_manager.set_windows();
             println!("Switch to window {}", stringify!($direction));
