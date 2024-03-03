@@ -5,8 +5,8 @@ use winapi::shared::windef::HWND;
 use winapi::um::winnt::WCHAR;
 use winapi::um::winuser::{
     CloseWindow, EnumWindows, GetClassNameW, GetForegroundWindow, GetWindow, GetWindowTextW,
-    IsWindowVisible, SendMessageW, SetForegroundWindow, GW_HWNDNEXT, SW_HIDE, SW_MINIMIZE,
-    SW_SHOWMINIMIZED, WM_CLOSE,
+    IsWindowVisible, SendMessageW, SetForegroundWindow, SetWindowPos, GW_HWNDNEXT, HWND_BOTTOM,
+    SWP_NOMOVE, SWP_NOSIZE, SW_HIDE, SW_MINIMIZE, SW_SHOWMINIMIZED, WM_CLOSE,
 };
 
 pub struct WindowManager {
@@ -33,7 +33,6 @@ impl WindowManager {
         }
     }
 
-    //todo: fix set behind. Should just check if window is in the same screen
     fn set_window(&mut self, window: Window) {
         if self.left.is_none() && window.rect.right <= self.current.rect.left {
             self.left = Some(window);
@@ -119,7 +118,7 @@ impl WindowManager {
         unsafe {
             EnumWindows(Some(enum_windows_proc), self as *mut _ as LPARAM);
         }
-        Self::print_windows(self);
+        //Self::print_windows(self);
     }
 
     pub fn clear_windows(&mut self) {
@@ -140,6 +139,29 @@ impl WindowManager {
             }
             hwnd = unsafe { GetWindow(hwnd, GW_HWNDNEXT) };
             order += 1;
+        }
+    }
+    pub fn switch_to_behind(&mut self) {
+        if let Some(window) = self.behind.take() {
+            window.print_title();
+            unsafe {
+                if SetForegroundWindow(window.hwnd) == 0 {
+                    println!("Failed to switch to behind");
+                } else {
+                    SetWindowPos(
+                        self.current.hwnd,
+                        HWND_BOTTOM,
+                        0,
+                        0,
+                        0,
+                        0,
+                        SWP_NOMOVE | SWP_NOSIZE,
+                    );
+                    self.clear_windows();
+                    self.current = window;
+                    self.set_windows();
+                }
+            }
         }
     }
 }
@@ -170,7 +192,17 @@ unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> i32 {
         if window.placement.showCmd != SW_HIDE as u32
             && window.placement.showCmd != SW_SHOWMINIMIZED as u32
         {
-            window_manager.set_window(window);
+            if let Some(title) = window.get_title() {
+                if title != "Windows Input Experience" {
+                    /*println!("");
+                    println!(
+                        "window title chars: {:?} window string {}",
+                        title.chars().map(|c| c as u32).collect::<Vec<_>>(),
+                        title
+                    );*/
+                    window_manager.set_window(window);
+                }
+            }
         }
     }
     1

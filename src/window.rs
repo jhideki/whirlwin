@@ -67,7 +67,7 @@ impl Window {
         }
 
         let title = String::from_utf16(buffer.as_slice()).unwrap();
-        Some(title)
+        Some(title.trim_end_matches(char::from(0)).to_owned())
     }
 
     pub fn print_title(&self) {

@@ -1,7 +1,9 @@
 use crate::switch_to_direction;
 use crate::window_manager::WindowManager;
 use std::io::Error;
-use winapi::um::winuser::{RegisterHotKey, SetForegroundWindow, UnregisterHotKey};
+use winapi::um::winuser::{
+    RegisterHotKey, SetForegroundWindow, UnregisterHotKey, VK_CAPITAL, VK_CONTROL, VK_RETURN,
+};
 
 use std::ptr::null_mut;
 
@@ -43,7 +45,7 @@ pub fn handle_hotkey(
             SWITCH_RIGHT => unsafe { switch_to_direction!(window_manager, right) },
             SWITCH_ABOVE => unsafe { switch_to_direction!(window_manager, above) },
             SWITCH_BELOW => unsafe { switch_to_direction!(window_manager, below) },
-            SWITCH_BEHIND => unsafe { switch_to_direction!(window_manager, behind) },
+            SWITCH_BEHIND => window_manager.switch_to_behind(),
             CLOSE_WINDOW => window_manager.close_window(),
             _ => println!("idk bru"),
         }
@@ -54,7 +56,7 @@ pub fn handle_hotkey(
 }
 pub fn register_leader() -> Result<(), Error> {
     unsafe {
-        if RegisterHotKey(null_mut(), LEADER, MOD_SHIFT as u32, VK_SPACE as u32) == 0 {
+        if RegisterHotKey(null_mut(), LEADER, MOD_SHIFT as u32, VK_CAPITAL as u32) == 0 {
             return Err(Error::last_os_error());
         }
     }
