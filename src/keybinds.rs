@@ -16,6 +16,7 @@ const SWITCH_BELOW: i32 = 5;
 const SWITCH_BEHIND: i32 = 6;
 const LEADER: i32 = 7;
 const CLOSE_WINDOW: i32 = 8;
+
 //Keycode
 const KEY_H: i32 = 0x48;
 const KEY_L: i32 = 0x4C;
@@ -28,12 +29,16 @@ pub fn handle_hotkey(
     wparam: i32,
     window_manager: &mut WindowManager,
     mut leader_pressed: bool,
-) -> bool {
+) -> Result<bool, String> {
     if !leader_pressed && wparam == LEADER {
         leader_pressed = true;
+        match register_hotkeys() {
+            Ok(_) => return Ok(leader_pressed),
+            Err(e) => return Err(format!("Error: {}", e)),
+        }
     } else if leader_pressed {
         match wparam {
-            EXIT => println!("exiting the program"),
+            EXIT => return Err("Exiting the program".to_string()),
             SWITCH_LEFT => unsafe { switch_to_direction!(window_manager, left) },
             SWITCH_RIGHT => unsafe { switch_to_direction!(window_manager, right) },
             SWITCH_ABOVE => unsafe { switch_to_direction!(window_manager, above) },
@@ -43,17 +48,28 @@ pub fn handle_hotkey(
             _ => println!("idk bru"),
         }
         leader_pressed = false;
+        unregister_hotkeys();
     }
-    leader_pressed
+    Ok(leader_pressed)
 }
-pub fn register_hotkeys() -> Result<(), Error> {
+pub fn register_leader() -> Result<(), Error> {
+    unsafe {
+        if RegisterHotKey(null_mut(), LEADER, MOD_SHIFT as u32, VK_SPACE as u32) == 0 {
+            return Err(Error::last_os_error());
+        }
+    }
+    Ok(())
+}
+
+pub fn unregister_leader() {
+    unsafe {
+        UnregisterHotKey(null_mut(), LEADER);
+    }
+}
+fn register_hotkeys() -> Result<(), Error> {
     unsafe {
         // Exit program
         if RegisterHotKey(null_mut(), EXIT, 0, VK_ESCAPE as u32) == 0 {
-            return Err(Error::last_os_error());
-        }
-
-        if RegisterHotKey(null_mut(), LEADER, MOD_SHIFT as u32, VK_SPACE as u32) == 0 {
             return Err(Error::last_os_error());
         }
 
@@ -99,7 +115,6 @@ pub fn unregister_hotkeys() {
         UnregisterHotKey(null_mut(), SWITCH_BELOW);
         UnregisterHotKey(null_mut(), SWITCH_BEHIND);
         UnregisterHotKey(null_mut(), CLOSE_WINDOW);
-        UnregisterHotKey(null_mut(), LEADER);
     }
 }
 
