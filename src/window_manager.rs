@@ -1,3 +1,4 @@
+use crate::callbacks::enum_windows_proc;
 use crate::window::Window;
 
 use winapi::shared::minwindef::LPARAM;
@@ -9,6 +10,7 @@ use winapi::um::winuser::{
     SWP_NOMOVE, SWP_NOSIZE, SW_HIDE, SW_MINIMIZE, SW_SHOWMINIMIZED, WM_CLOSE,
 };
 
+//Todo: make this a static const arc mutex
 pub struct WindowManager {
     pub current: Window,
     pub left: Option<Window>,
@@ -33,7 +35,7 @@ impl WindowManager {
         }
     }
 
-    fn set_window(&mut self, window: Window) {
+    pub fn set_window(&mut self, window: Window) {
         if self.left.is_none() && window.rect.right <= self.current.rect.left {
             self.left = Some(window);
         } else if self.right.is_none() && window.rect.left >= self.current.rect.right {
@@ -118,7 +120,6 @@ impl WindowManager {
         unsafe {
             EnumWindows(Some(enum_windows_proc), self as *mut _ as LPARAM);
         }
-        //Self::print_windows(self);
     }
 
     pub fn clear_windows(&mut self) {
@@ -179,32 +180,5 @@ macro_rules! switch_to_direction {
             println!("Switch to window {}", stringify!($direction));
         }
     };
-}
-
-unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> i32 {
-    let mut buffer: [WCHAR; 1024] = [0; 1024];
-    let window_manager = &mut *(lparam as *mut WindowManager);
-    let length = GetWindowTextW(hwnd, buffer.as_mut_ptr(), buffer.len() as i32);
-
-    if length > 0 && IsWindowVisible(hwnd) != 0 && hwnd != window_manager.current.hwnd {
-        window_manager.count += 1;
-        let window = Window::new(hwnd, window_manager.count);
-        if window.placement.showCmd != SW_HIDE as u32
-            && window.placement.showCmd != SW_SHOWMINIMIZED as u32
-        {
-            if let Some(title) = window.get_title() {
-                if title != "Windows Input Experience" {
-                    /*println!("");
-                    println!(
-                        "window title chars: {:?} window string {}",
-                        title.chars().map(|c| c as u32).collect::<Vec<_>>(),
-                        title
-                    );*/
-                    window_manager.set_window(window);
-                }
-            }
-        }
-    }
-    1
 }
 

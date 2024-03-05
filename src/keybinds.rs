@@ -1,6 +1,6 @@
 use crate::switch_to_direction;
 use crate::window_manager::WindowManager;
-use std::io::Error;
+use std::{io::Error, sync::MutexGuard};
 use winapi::um::winuser::{
     RegisterHotKey, SetForegroundWindow, UnregisterHotKey, VK_CAPITAL, VK_CONTROL, VK_RETURN,
 };
@@ -30,15 +30,15 @@ const KEY_D: i32 = 0x44;
 pub fn handle_hotkey(
     wparam: i32,
     window_manager: &mut WindowManager,
-    mut leader_pressed: bool,
+    leader_pressed: bool,
 ) -> Result<bool, String> {
     if !leader_pressed && wparam == LEADER {
-        leader_pressed = true;
         match register_hotkeys() {
-            Ok(_) => return Ok(leader_pressed),
+            Ok(_) => return Ok(true),
             Err(e) => return Err(format!("Error: {}", e)),
-        }
-    } else if leader_pressed {
+        };
+    }
+    if leader_pressed {
         match wparam {
             EXIT => return Err("Exiting the program".to_string()),
             SWITCH_LEFT => unsafe { switch_to_direction!(window_manager, left) },
@@ -49,14 +49,14 @@ pub fn handle_hotkey(
             CLOSE_WINDOW => window_manager.close_window(),
             _ => println!("idk bru"),
         }
-        leader_pressed = false;
+
         unregister_hotkeys();
     }
-    Ok(leader_pressed)
+    Ok(false)
 }
 pub fn register_leader() -> Result<(), Error> {
     unsafe {
-        if RegisterHotKey(null_mut(), LEADER, MOD_SHIFT as u32, VK_CAPITAL as u32) == 0 {
+        if RegisterHotKey(null_mut(), LEADER, MOD_SHIFT as u32, VK_SPACE as u32) == 0 {
             return Err(Error::last_os_error());
         }
     }
