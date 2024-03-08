@@ -9,13 +9,23 @@ use lazy_static::lazy_static;
 use std::io::Error;
 use std::ptr::{self, null_mut};
 use std::sync::{Arc, Mutex};
-use winapi::um::winuser::{GetMessageW, SetWinEventHook, EVENT_SYSTEM_FOREGROUND, MSG};
+use winapi::um::winuser::GetForegroundWindow;
+use winapi::um::winuser::PM_REMOVE;
+use winapi::um::winuser::{PeekMessageW, SetWinEventHook, EVENT_SYSTEM_FOREGROUND, MSG};
 use winapi::um::winuser::{WINEVENT_OUTOFCONTEXT, WM_HOTKEY};
+use window::Window;
 use window_manager::WindowManager;
 
 lazy_static! {
-    static ref LEADER_PRESSED: Arc<Mutex<bool>> = Arc::new((Mutex::new(false)));
+    static ref LEADER_PRESSED: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
+    static ref NEW_FOREGROUND_SET: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
 }
+
+pub enum WindowManagerMessage {
+    CloseWindow,
+    EnumerateWindows,
+}
+
 fn main() -> Result<(), Error> {
     let mut window_manager = WindowManager::new();
     window_manager.set_windows();
@@ -35,22 +45,34 @@ fn main() -> Result<(), Error> {
             WINEVENT_OUTOFCONTEXT,
         );
     }
-    unsafe {
-        let mut msg: MSG = Default::default();
-        while GetMessageW(&mut msg, null_mut(), 0, 0) != 0 {
-            if msg.message == WM_HOTKEY {
-                if let Ok(mut gaurd) = LEADER_PRESSED.lock() {
-                    println!("{}", gaurd);
-                    match handle_hotkey(msg.wParam as i32, &mut window_manager, *gaurd) {
-                        Ok(leader) => {
-                            *gaurd = leader;
-                        }
-                        Err(e) => {
-                            println!("Error {}", e);
-                            break;
+
+    let mut msg: MSG = Default::default();
+
+    loop {
+        unsafe {
+            if PeekMessageW(&mut msg, null_mut(), 0, 0, PM_REMOVE) != 0 {
+                if msg.message == WM_HOTKEY {
+                    if let Ok(mut gaurd) = LEADER_PRESSED.lock() {
+                        match handle_hotkey(msg.wParam as i32, &mut window_manager, *gaurd) {
+                            Ok(leader) => {
+                                *gaurd = leader;
+                            }
+                            Err(e) => {
+                                println!("Error {}", e);
+                                break;
+                            }
                         }
                     }
                 }
+            }
+            match NEW_FOREGROUND_SET.lock() {
+                Ok(gaurd) => {
+                    if *gaurd {
+                        window_manager.set_windows();
+                        window_manager.current = Window::new(GetForegroundWindow(), 0);
+                    }
+                }
+                Err(e) => println!("Failed to lock mutex: {}", e),
             }
         }
     }

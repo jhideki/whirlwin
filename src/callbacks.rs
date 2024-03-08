@@ -1,6 +1,6 @@
 use crate::window::Window;
 use crate::window_manager::WindowManager;
-use crate::LEADER_PRESSED;
+use crate::{LEADER_PRESSED, NEW_FOREGROUND_SET};
 use winapi::shared::minwindef::{DWORD, LPARAM};
 use winapi::shared::ntdef::LONG;
 use winapi::shared::windef::{HWINEVENTHOOK, HWND};
@@ -11,14 +11,19 @@ use winapi::um::winuser::{
 pub unsafe extern "system" fn win_event_proc(
     _: HWINEVENTHOOK,
     event: u32,
-    hwnd: HWND,
+    _hwnd: HWND,
     _: LONG,
     _: LONG,
     _: DWORD,
     _: DWORD,
 ) {
     if let Ok(gaurd) = LEADER_PRESSED.lock() {
-        if event == EVENT_SYSTEM_FOREGROUND {}
+        if event == EVENT_SYSTEM_FOREGROUND && !*gaurd {
+            if let Ok(mut gaurd_foreground) = NEW_FOREGROUND_SET.lock() {
+                *gaurd_foreground = true;
+                println!("{}", *gaurd_foreground);
+            }
+        }
     }
 }
 
