@@ -8,6 +8,7 @@ use winapi::um::winnt::WCHAR;
 use winapi::um::winuser::{
     GetWindowTextW, IsWindowVisible, EVENT_SYSTEM_FOREGROUND, SW_HIDE, SW_SHOWMINIMIZED,
 };
+//Checks if leader is pressed and signals window manager to re enumerate windows
 pub unsafe extern "system" fn win_event_proc(
     _: HWINEVENTHOOK,
     event: u32,
@@ -21,7 +22,6 @@ pub unsafe extern "system" fn win_event_proc(
         if event == EVENT_SYSTEM_FOREGROUND && !*gaurd {
             if let Ok(mut gaurd_foreground) = NEW_FOREGROUND_SET.lock() {
                 *gaurd_foreground = true;
-                println!("{}", *gaurd_foreground);
             }
         }
     }

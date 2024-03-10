@@ -6,18 +6,19 @@ use winapi::shared::windef::HWND;
 use winapi::um::winnt::WCHAR;
 use winapi::um::winuser::{
     CloseWindow, EnumWindows, GetClassNameW, GetForegroundWindow, GetWindow, GetWindowTextW,
-    IsWindowVisible, SendMessageW, SetForegroundWindow, SetWindowPos, GW_HWNDNEXT, HWND_BOTTOM,
-    SWP_NOMOVE, SWP_NOSIZE, SW_HIDE, SW_MINIMIZE, SW_SHOWMINIMIZED, WM_CLOSE,
+    IsWindowVisible, SendMessageW, SetForegroundWindow, SetWindowPos, GW_HWNDLAST, GW_HWNDNEXT,
+    HWND_BOTTOM, SWP_NOMOVE, SWP_NOSIZE, SW_HIDE, SW_MINIMIZE, SW_SHOWMINIMIZED, WM_CLOSE,
 };
 
-//Todo: make this a static const arc mutex
 pub struct WindowManager {
     pub current: Window,
     pub left: Option<Window>,
     pub right: Option<Window>,
     pub below: Option<Window>,
     pub above: Option<Window>,
-    pub behind: Option<Window>,
+    next: Option<Window>,
+    window_stack: Vec<Window>, // keep track of prevous windows
+    stack_bottom: Option<HWND>,
     pub count: i32, // corresponds to order in window struct
 }
 impl WindowManager {
@@ -30,7 +31,9 @@ impl WindowManager {
             right: None,
             below: None,
             above: None,
-            behind: None,
+            next: None,
+            window_stack: Vec::new(),
+            stack_bottom: None,
             count: 0,
         }
     }
@@ -44,8 +47,8 @@ impl WindowManager {
             self.above = Some(window);
         } else if self.below.is_none() && window.rect.top >= self.current.rect.bottom {
             self.below = Some(window);
-        } else if self.behind.is_none() && window.monitor == self.current.monitor {
-            self.behind = Some(window)
+        } else if self.next.is_none() && window.monitor == self.current.monitor {
+            self.next = Some(window)
         }
     }
 
@@ -53,9 +56,9 @@ impl WindowManager {
         unsafe {
             SendMessageW(self.current.hwnd, WM_CLOSE, 0, 0);
         }
-        if let Some(window) = &self.behind {
+        if let Some(window) = &self.next {
             self.current = window.to_owned();
-            self.behind = None;
+            self.next = None;
             self.set_windows();
         }
     }
@@ -109,8 +112,8 @@ impl WindowManager {
         }
 
         println!("");
-        print!("behind");
-        match &self.behind {
+        print!("next");
+        match &self.next {
             Some(window) => window.print_title(),
             None => println!("window does not exist"),
         }
@@ -127,7 +130,9 @@ impl WindowManager {
         self.right = None;
         self.above = None;
         self.below = None;
-        self.behind = None;
+        self.next = None;
+        self.window_stack.clear();
+        self.stack_bottom = None;
     }
 
     pub fn get_all_windows(&mut self) {
@@ -142,28 +147,49 @@ impl WindowManager {
             order += 1;
         }
     }
-    pub fn switch_to_behind(&mut self) {
-        if let Some(window) = self.behind.take() {
+
+    pub fn switch_to_previous(&mut self) {
+        if let Some(window) = self.window_stack.pop() {
+            self.next = Some(self.current.clone());
+            self.current = window;
+            unsafe {
+                SetForegroundWindow(self.current.hwnd);
+            }
+        } else {
+            println!("previous doesn't exist");
+        }
+    }
+
+    pub fn switch_to_next(&mut self) {
+        if let Some(window) = self.next.take() {
             window.print_title();
             unsafe {
-                if SetForegroundWindow(window.hwnd) == 0 {
-                    println!("Failed to switch to behind");
-                } else {
-                    SetWindowPos(
-                        self.current.hwnd,
-                        HWND_BOTTOM,
-                        0,
-                        0,
-                        0,
-                        0,
-                        SWP_NOMOVE | SWP_NOSIZE,
-                    );
-                    self.clear_windows();
-                    self.current = window;
-                    self.set_windows();
+                SetForegroundWindow(window.hwnd);
+                SetWindowPos(
+                    self.current.hwnd,
+                    HWND_BOTTOM,
+                    0,
+                    0,
+                    0,
+                    0,
+                    SWP_NOMOVE | SWP_NOSIZE,
+                );
+            }
+            if let Some(hwnd) = self.stack_bottom {
+                if hwnd == window.hwnd {
+                    println!("reached the first window again");
+                    self.window_stack.clear();
                 }
             }
-        }
+            if self.window_stack.is_empty() {
+                let window = self.current.clone();
+                self.stack_bottom = Some(window.hwnd);
+                self.window_stack.push(window);
+            } else {
+                self.window_stack.push(self.current.clone());
+            }
+            self.current = window;
+        };
     }
 }
 

@@ -1,6 +1,6 @@
 use crate::switch_to_direction;
 use crate::window_manager::WindowManager;
-use std::{io::Error, sync::MutexGuard};
+use std::io::Error;
 use winapi::um::winuser::{
     RegisterHotKey, SetForegroundWindow, UnregisterHotKey, VK_CAPITAL, VK_CONTROL, VK_RETURN,
 };
@@ -18,6 +18,7 @@ const SWITCH_BELOW: i32 = 5;
 const SWITCH_BEHIND: i32 = 6;
 const LEADER: i32 = 7;
 const CLOSE_WINDOW: i32 = 8;
+const SWITCH_PREVIOUS: i32 = 9;
 
 //Keycode
 const KEY_H: i32 = 0x48;
@@ -26,6 +27,7 @@ const KEY_J: i32 = 0x4A;
 const KEY_K: i32 = 0x4B;
 const KEY_N: i32 = 0x4E;
 const KEY_D: i32 = 0x44;
+const KEY_P: i32 = 0x50;
 
 pub fn handle_hotkey(
     wparam: i32,
@@ -45,8 +47,9 @@ pub fn handle_hotkey(
             SWITCH_RIGHT => unsafe { switch_to_direction!(window_manager, right) },
             SWITCH_ABOVE => unsafe { switch_to_direction!(window_manager, above) },
             SWITCH_BELOW => unsafe { switch_to_direction!(window_manager, below) },
-            SWITCH_BEHIND => window_manager.switch_to_behind(),
+            SWITCH_BEHIND => window_manager.switch_to_next(),
             CLOSE_WINDOW => window_manager.close_window(),
+            SWITCH_PREVIOUS => window_manager.switch_to_previous(),
             _ => println!("idk bru"),
         }
 
@@ -104,6 +107,11 @@ fn register_hotkeys() -> Result<(), Error> {
             println!("failed to register D");
             return Err(Error::last_os_error());
         }
+
+        if RegisterHotKey(null_mut(), SWITCH_PREVIOUS, 0, KEY_P as u32) == 0 {
+            println!("failed to register P");
+            return Err(Error::last_os_error());
+        }
     }
     Ok(())
 }
@@ -117,6 +125,7 @@ pub fn unregister_hotkeys() {
         UnregisterHotKey(null_mut(), SWITCH_BELOW);
         UnregisterHotKey(null_mut(), SWITCH_BEHIND);
         UnregisterHotKey(null_mut(), CLOSE_WINDOW);
+        UnregisterHotKey(null_mut(), SWITCH_PREVIOUS);
     }
 }
 

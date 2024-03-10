@@ -16,6 +16,7 @@ use winapi::um::winuser::{WINEVENT_OUTOFCONTEXT, WM_HOTKEY};
 use window::Window;
 use window_manager::WindowManager;
 
+//I couldn't think of a better way to signal the window manager from the event hook
 lazy_static! {
     static ref LEADER_PRESSED: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
     static ref NEW_FOREGROUND_SET: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
@@ -65,15 +66,18 @@ fn main() -> Result<(), Error> {
                     }
                 }
             }
-            match NEW_FOREGROUND_SET.lock() {
-                Ok(gaurd) => {
-                    if *gaurd {
-                        window_manager.set_windows();
+        }
+        //Check if a new foreground has been set without using the hotkeys
+        match NEW_FOREGROUND_SET.lock() {
+            Ok(gaurd) => {
+                if *gaurd {
+                    window_manager.set_windows();
+                    unsafe {
                         window_manager.current = Window::new(GetForegroundWindow(), 0);
                     }
                 }
-                Err(e) => println!("Failed to lock mutex: {}", e),
             }
+            Err(e) => println!("Failed to lock mutex: {}", e),
         }
     }
     unregister_leader();
