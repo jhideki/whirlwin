@@ -1,6 +1,7 @@
 use crate::window::Window;
 use crate::window_manager::WindowManager;
 use crate::{LEADER_PRESSED, NEW_FOREGROUND_SET};
+use std::sync::atomic::Ordering;
 use winapi::shared::minwindef::{DWORD, LPARAM};
 use winapi::shared::ntdef::LONG;
 use winapi::shared::windef::{HWINEVENTHOOK, HWND};
@@ -18,12 +19,10 @@ pub unsafe extern "system" fn win_event_proc(
     _: DWORD,
     _: DWORD,
 ) {
-    if let Ok(gaurd) = LEADER_PRESSED.lock() {
-        if event == EVENT_SYSTEM_FOREGROUND && !*gaurd {
-            if let Ok(mut gaurd_foreground) = NEW_FOREGROUND_SET.lock() {
-                *gaurd_foreground = true;
-            }
-        }
+    let leader_pressed = LEADER_PRESSED.load(Ordering::Acquire);
+    if event == EVENT_SYSTEM_FOREGROUND && !leader_pressed {
+        println!("leader in callback {}", leader_pressed);
+        NEW_FOREGROUND_SET.store(true, Ordering::Relaxed);
     }
 }
 

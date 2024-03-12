@@ -3,7 +3,6 @@ use crate::window::Window;
 
 use winapi::shared::minwindef::LPARAM;
 use winapi::shared::windef::HWND;
-use winapi::um::winnt::WCHAR;
 use winapi::um::winuser::{
     CloseWindow, EnumWindows, GetClassNameW, GetForegroundWindow, GetWindow, GetWindowTextW,
     IsWindowVisible, SendMessageW, SetForegroundWindow, SetWindowPos, GW_HWNDLAST, GW_HWNDNEXT,
@@ -58,7 +57,7 @@ impl WindowManager {
         }
         if let Some(window) = &self.next {
             self.current = window.to_owned();
-            self.next = None;
+            self.clear_windows();
             self.set_windows();
         }
     }

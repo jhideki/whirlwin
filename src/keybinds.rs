@@ -42,7 +42,7 @@ pub fn handle_hotkey(
     }
     if leader_pressed {
         match wparam {
-            EXIT => return Err("Exiting the program".to_string()),
+            EXIT => return Err("User hit ESC.".to_string()),
             SWITCH_LEFT => unsafe { switch_to_direction!(window_manager, left) },
             SWITCH_RIGHT => unsafe { switch_to_direction!(window_manager, right) },
             SWITCH_ABOVE => unsafe { switch_to_direction!(window_manager, above) },
