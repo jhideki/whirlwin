@@ -1,13 +1,27 @@
 use crate::callbacks::enum_windows_proc;
 use crate::window::Window;
 
-use winapi::shared::minwindef::LPARAM;
-use winapi::shared::windef::HWND;
-use winapi::um::winuser::{
+use async_std::channel::Receiver;
+use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
+use windows::Win32::UI::WindowsAndMessaging::{
     CloseWindow, EnumWindows, GetClassNameW, GetForegroundWindow, GetWindow, GetWindowTextW,
     IsWindowVisible, SendMessageW, SetForegroundWindow, SetWindowPos, GW_HWNDLAST, GW_HWNDNEXT,
     HWND_BOTTOM, SWP_NOMOVE, SWP_NOSIZE, SW_HIDE, SW_MINIMIZE, SW_SHOWMINIMIZED, WM_CLOSE,
 };
+pub enum Direction {
+    Left,
+    Right,
+    Below,
+    Above,
+}
+pub enum WindowManagerMessage {
+    ClearWindows,
+    SetWindows,
+    CloseWindow,
+    SwitchToNext,
+    SwitchToPrevious,
+    SwitchToDirection(Direction),
+}
 
 pub struct WindowManager {
     pub current: Window,
@@ -19,11 +33,11 @@ pub struct WindowManager {
     window_stack: Vec<Window>, // keep track of prevous windows
     stack_bottom: Option<HWND>,
     pub count: i32, // corresponds to order in window struct
+    receiver: Receiver<WindowManagerMessage>,
 }
 impl WindowManager {
-    pub fn new() -> WindowManager {
+    pub fn new(receiver: Receiver<WindowManagerMessage>) -> WindowManager {
         let current = unsafe { Window::new(GetForegroundWindow(), 0) };
-        Self::print_window_info(&current);
         WindowManager {
             current,
             left: None,
@@ -34,6 +48,22 @@ impl WindowManager {
             window_stack: Vec::new(),
             stack_bottom: None,
             count: 0,
+            receiver: receiver,
+        }
+    }
+
+    pub async fn start(mut self) {
+        while let Ok(message) = self.receiver.recv().await {
+            match message {
+                WindowManagerMessage::SetWindows => self.set_windows(),
+                WindowManagerMessage::CloseWindow => self.close_window(),
+                WindowManagerMessage::SwitchToNext => self.switch_to_next(),
+                WindowManagerMessage::SwitchToPrevious => self.switch_to_previous(),
+                WindowManagerMessage::SwitchToDirection(direction) => {
+                    self.switch_to_direction(direction)
+                }
+                WindowManagerMessage::ClearWindows => self.clear_windows(),
+            }
         }
     }
 
@@ -51,9 +81,39 @@ impl WindowManager {
         }
     }
 
+    fn switch_to_direction(&mut self, direction: Direction) {
+        let mut option = None;
+        match direction {
+            Left => {
+                option = Some(self.left.take());
+            }
+            Right => {
+                option = Some(self.right.take());
+            }
+            Below => {
+                option = Some(self.below.take());
+            }
+            Above => {
+                option = Some(self.above.take());
+            }
+        }
+
+        if let Some(window) = option.unwrap() {
+            unsafe {
+                if !SetForegroundWindow(window.hwnd).as_bool() {
+                    println!("Failed to switch windows");
+                }
+            }
+            self.clear_windows();
+            self.current = window;
+            self.set_windows();
+        }
+    }
+
     pub fn close_window(&mut self) {
         unsafe {
-            SendMessageW(self.current.hwnd, WM_CLOSE, 0, 0);
+            //CloseWindow(self.current.hwnd);
+            SendMessageW(self.current.hwnd, WM_CLOSE, WPARAM(0), LPARAM(0));
         }
         if let Some(window) = &self.next {
             self.current = window.to_owned();
@@ -62,7 +122,7 @@ impl WindowManager {
         }
     }
 
-    fn print_window_info(window: &Window) {
+    /*fn print_window_info(window: &Window) {
         println!("order: {}", window.order);
         println!("flags {}", window.placement.flags);
         println!("dwStyle {}", window.info.dwStyle);
@@ -76,7 +136,7 @@ impl WindowManager {
         println!("bottom {}", window.rect.bottom);
         println!("top {}", window.rect.top);
         println!("");
-    }
+    }*/
     pub fn print_windows(&mut self) {
         println!("current");
         &self.current.print_title();
@@ -132,19 +192,6 @@ impl WindowManager {
         self.next = None;
         self.window_stack.clear();
         self.stack_bottom = None;
-    }
-
-    pub fn get_all_windows(&mut self) {
-        let mut hwnd = unsafe { GetWindow(self.current.hwnd, GW_HWNDNEXT) };
-        let mut order = 0;
-        while !hwnd.is_null() {
-            let window = Window::new(hwnd, order);
-            if unsafe { IsWindowVisible(hwnd) } == 1 && window.placement.showCmd != 2 {
-                self.set_window(window);
-            }
-            hwnd = unsafe { GetWindow(hwnd, GW_HWNDNEXT) };
-            order += 1;
-        }
     }
 
     pub fn switch_to_previous(&mut self) {

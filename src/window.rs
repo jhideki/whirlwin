@@ -1,9 +1,10 @@
 use std::clone;
 
-use winapi::shared::windef::{HMONITOR, HWND, RECT};
-use winapi::um::winuser::{
+use windows::Win32::Foundation::{HWND, RECT};
+use windows::Win32::Graphics::Gdi::{MonitorFromWindow, HMONITOR, MONITOR_DEFAULTTOPRIMARY};
+use windows::Win32::UI::WindowsAndMessaging::{
     GetWindowInfo, GetWindowPlacement, GetWindowRect, GetWindowTextLengthW, GetWindowTextW,
-    MonitorFromWindow, MONITOR_DEFAULTTOPRIMARY, WINDOWINFO, WINDOWPLACEMENT,
+    WINDOWINFO, WINDOWPLACEMENT,
 };
 // Used to store window rect without padding
 #[derive(Clone)]
@@ -59,9 +60,9 @@ impl Window {
         if length == 0 {
             return None;
         }
-        let mut buffer: Vec<u16> = vec![0; (length + 1) as usize];
+        let mut buffer = vec![0u16; (length + 1) as usize];
 
-        let actual_length = unsafe { GetWindowTextW(self.hwnd, buffer.as_mut_ptr(), length + 1) };
+        let actual_length = unsafe { GetWindowTextW(self.hwnd, &mut buffer) };
         if actual_length == 0 {
             return None;
         }

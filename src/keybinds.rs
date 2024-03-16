@@ -1,6 +1,7 @@
-use crate::switch_to_direction;
-use crate::window_manager::WindowManager;
+use crate::window_manager::{Direction, WindowManagerMessage};
+use async_std::channel::Sender;
 use std::io::Error;
+use std::sync::{Arc, Mutex};
 use winapi::um::winuser::{
     RegisterHotKey, SetForegroundWindow, UnregisterHotKey, VK_CAPITAL, VK_CONTROL, VK_RETURN,
 };
@@ -8,6 +9,7 @@ use winapi::um::winuser::{
 use std::ptr::null_mut;
 
 use winapi::um::winuser::{MOD_SHIFT, VK_ESCAPE, VK_SPACE};
+use windows::Win32::Foundation::WPARAM;
 
 //Hotkey indentifies
 const EXIT: i32 = 1;
@@ -29,9 +31,9 @@ const KEY_N: i32 = 0x4E;
 const KEY_D: i32 = 0x44;
 const KEY_P: i32 = 0x50;
 
-pub fn handle_hotkey(
+pub async fn handle_hotkey(
     wparam: i32,
-    window_manager: &mut WindowManager,
+    sender: &Arc<Sender<WindowManagerMessage>>,
     leader_pressed: bool,
 ) -> Result<bool, String> {
     if !leader_pressed && wparam == LEADER {
@@ -43,14 +45,38 @@ pub fn handle_hotkey(
     if leader_pressed {
         match wparam {
             EXIT => return Err("User hit ESC.".to_string()),
-            SWITCH_LEFT => unsafe { switch_to_direction!(window_manager, left) },
-            SWITCH_RIGHT => unsafe { switch_to_direction!(window_manager, right) },
-            SWITCH_ABOVE => unsafe { switch_to_direction!(window_manager, above) },
-            SWITCH_BELOW => unsafe { switch_to_direction!(window_manager, below) },
-            SWITCH_BEHIND => window_manager.switch_to_next(),
-            CLOSE_WINDOW => window_manager.close_window(),
-            SWITCH_PREVIOUS => window_manager.switch_to_previous(),
-            _ => println!("idk bru"),
+            SWITCH_LEFT => {
+                sender
+                    .send(WindowManagerMessage::SwitchToDirection(Direction::Left))
+                    .await;
+            }
+            SWITCH_RIGHT => {
+                sender
+                    .send(WindowManagerMessage::SwitchToDirection(Direction::Right))
+                    .await;
+            }
+            SWITCH_ABOVE => {
+                sender
+                    .send(WindowManagerMessage::SwitchToDirection(Direction::Above))
+                    .await;
+            }
+            SWITCH_BELOW => {
+                sender
+                    .send(WindowManagerMessage::SwitchToDirection(Direction::Below))
+                    .await;
+            }
+            SWITCH_BEHIND => {
+                sender.send(WindowManagerMessage::SwitchToNext).await;
+            }
+            CLOSE_WINDOW => {
+                sender.send(WindowManagerMessage::CloseWindow).await;
+            }
+            SWITCH_PREVIOUS => {
+                sender.send(WindowManagerMessage::SwitchToPrevious).await;
+            }
+            _ => {
+                println!("idk bru");
+            }
         }
 
         unregister_hotkeys();
