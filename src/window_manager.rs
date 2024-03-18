@@ -1,12 +1,11 @@
 use crate::callbacks::enum_windows_proc;
 use crate::window::Window;
 
-use async_std::channel::Receiver;
+use std::sync::mpsc::Receiver;
 use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
 use windows::Win32::UI::WindowsAndMessaging::{
-    CloseWindow, EnumWindows, GetClassNameW, GetForegroundWindow, GetWindow, GetWindowTextW,
-    IsWindowVisible, SendMessageW, SetForegroundWindow, SetWindowPos, GW_HWNDLAST, GW_HWNDNEXT,
-    HWND_BOTTOM, SWP_NOMOVE, SWP_NOSIZE, SW_HIDE, SW_MINIMIZE, SW_SHOWMINIMIZED, WM_CLOSE,
+    CloseWindow, EnumWindows, GetForegroundWindow, SendMessageW, SetForegroundWindow, SetWindowPos,
+    HWND_BOTTOM, SWP_NOMOVE, SWP_NOSIZE, WM_CLOSE,
 };
 pub enum Direction {
     Left,
@@ -21,6 +20,7 @@ pub enum WindowManagerMessage {
     SwitchToNext,
     SwitchToPrevious,
     SwitchToDirection(Direction),
+    EndListener,
 }
 
 pub struct WindowManager {
@@ -52,8 +52,9 @@ impl WindowManager {
         }
     }
 
-    pub async fn start(mut self) {
-        while let Ok(message) = self.receiver.recv().await {
+    pub fn start(mut self) {
+        while let Ok(message) = self.receiver.recv() {
+            println!("message received in window_manager");
             match message {
                 WindowManagerMessage::SetWindows => self.set_windows(),
                 WindowManagerMessage::CloseWindow => self.close_window(),
@@ -63,6 +64,7 @@ impl WindowManager {
                     self.switch_to_direction(direction)
                 }
                 WindowManagerMessage::ClearWindows => self.clear_windows(),
+                WindowManagerMessage::EndListener => break,
             }
         }
     }
@@ -84,16 +86,16 @@ impl WindowManager {
     fn switch_to_direction(&mut self, direction: Direction) {
         let mut option = None;
         match direction {
-            Left => {
+            Direction::Left => {
                 option = Some(self.left.take());
             }
-            Right => {
+            Direction::Right => {
                 option = Some(self.right.take());
             }
-            Below => {
+            Direction::Below => {
                 option = Some(self.below.take());
             }
-            Above => {
+            Direction::Above => {
                 option = Some(self.above.take());
             }
         }
@@ -180,7 +182,10 @@ impl WindowManager {
 
     pub fn set_windows(&mut self) {
         unsafe {
-            EnumWindows(Some(enum_windows_proc), self as *mut _ as LPARAM);
+            EnumWindows(
+                Some(enum_windows_proc),
+                LPARAM(self as *mut WindowManager as isize),
+            );
         }
     }
 

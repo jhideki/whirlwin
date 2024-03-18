@@ -2,7 +2,7 @@ use crate::window::Window;
 use crate::window_manager::WindowManager;
 use crate::{CALLBACK_CALLED, CALLBACK_CONDVAR, LEADER_PRESSED, NEW_FOREGROUND_SET};
 use std::sync::atomic::Ordering;
-use windows::Win32::Foundation::{HWND, LPARAM};
+use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
 use windows::Win32::UI::Accessibility::HWINEVENTHOOK;
 use windows::Win32::UI::WindowsAndMessaging::{
     GetWindowTextW, IsWindowVisible, EVENT_SYSTEM_FOREGROUND,
@@ -17,7 +17,7 @@ pub unsafe extern "system" fn win_event_proc(
     _: u32,
     _: u32,
 ) {
-    println!("callback started");
+    println!("callback called");
     let mut finished = CALLBACK_CALLED.lock().unwrap();
     let leader_pressed = LEADER_PRESSED.load(Ordering::Acquire);
     if event == EVENT_SYSTEM_FOREGROUND && !leader_pressed {
@@ -30,7 +30,7 @@ pub unsafe extern "system" fn win_event_proc(
     println!("callback finisehd");
 }
 
-pub unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> i32 {
+pub unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
     let mut buffer: [u16; 1024] = [0; 1024];
     let window_manager = &mut *(lparam.0 as *mut WindowManager);
     let length = GetWindowTextW(hwnd, &mut buffer);
@@ -47,6 +47,6 @@ pub unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> i
             }
         }
     }
-    1
+    true.into()
 }
 

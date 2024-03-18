@@ -3,24 +3,20 @@ mod keybinds;
 mod window;
 mod window_manager;
 
-use async_std::channel::{Receiver, Send, Sender};
-use async_std::{channel, task};
 use callbacks::win_event_proc;
 use keybinds::{handle_hotkey, register_leader, unregister_leader};
 use lazy_static::lazy_static;
 use std::io::Error;
-use std::ptr::{self, null_mut};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
-use windows::Win32::Foundation::HWND;
-use windows::Win32::UI::WindowsAndMessaging::GetMessageW;
-use windows::Win32::UI::WindowsAndMessaging::MSG;
-
-use winapi::um::winuser::{
-    GetForegroundWindow, SetWinEventHook, EVENT_SYSTEM_FOREGROUND, PM_REMOVE,
-    WINEVENT_OUTOFCONTEXT, WM_HOTKEY, WM_USER,
+use windows::Win32::UI::Accessibility::SetWinEventHook;
+use windows::Win32::UI::WindowsAndMessaging::{
+    DispatchMessageW, GetForegroundWindow, GetMessageW, TranslateMessage, EVENT_SYSTEM_FOREGROUND,
+    MSG, WINEVENT_OUTOFCONTEXT, WM_HOTKEY,
 };
+
 use window::Window;
 use window_manager::{WindowManager, WindowManagerMessage};
 
@@ -32,12 +28,12 @@ lazy_static! {
     static ref CALLBACK_CALLED: Mutex<bool> = Mutex::new(false);
 }
 
-fn handle_callback(window_manager: Arc<Mutex<WindowManager>>) {
+fn handle_callback(sender: Arc<Sender<WindowManagerMessage>>) {
     unsafe {
         SetWinEventHook(
             EVENT_SYSTEM_FOREGROUND,
             EVENT_SYSTEM_FOREGROUND,
-            ptr::null_mut(),
+            None,
             Some(win_event_proc),
             0,
             0,
@@ -45,11 +41,15 @@ fn handle_callback(window_manager: Arc<Mutex<WindowManager>>) {
         );
     }
     loop {
-        let mut gaurd = CALLBACK_CALLED.lock().unwrap();
-        while !*gaurd {
-            gaurd = CALLBACK_CONDVAR.wait(gaurd).unwrap();
+        let mut msg: MSG = MSG::default();
+        unsafe {
+            if !GetMessageW(&mut msg, None, 0, 0).as_bool() {
+                break;
+            }
+            TranslateMessage(&msg);
+            DispatchMessageW(&msg);
         }
-        if NEW_FOREGROUND_SET.load(Ordering::Relaxed) {
+        /*if NEW_FOREGROUND_SET.load(Ordering::Relaxed) {
             let mut gaurd = window_manager.lock().unwrap();
             //Check if a new foreground has been set without using the hotkeys
             gaurd.clear_windows();
@@ -59,28 +59,26 @@ fn handle_callback(window_manager: Arc<Mutex<WindowManager>>) {
             }
             println!("new foreground set through clicking");
             NEW_FOREGROUND_SET.store(false, Ordering::Relaxed);
-        }
+        }*/
     }
 }
 
-async fn key_listener(sender: Arc<Sender<WindowManagerMessage>>) {
-    loop {
-        unsafe {
-            let mut msg: MSG = MSG::default();
-            if !GetMessageW(&mut msg, HWND(0), 0, 0).as_bool() {
-                if msg.message == WM_HOTKEY {
-                    let leader_pressed = LEADER_PRESSED.load(Ordering::Relaxed);
-                    let wparam = msg.wParam.0 as i32;
-                    match handle_hotkey(wparam, &sender, leader_pressed).await {
-                        Ok(leader) => {
-                            println!("leader after hotkey {}", leader);
-                            LEADER_PRESSED.store(leader, Ordering::Relaxed);
-                            println!("leader pressed updated");
-                        }
-                        Err(e) => {
-                            println!("Error {}", e);
-                            break;
-                        }
+fn key_listener(sender: Arc<Sender<WindowManagerMessage>>) {
+    unsafe {
+        let mut msg: MSG = MSG::default();
+        while GetMessageW(&mut msg, None, 0, 0).into() {
+            if msg.message == WM_HOTKEY {
+                let leader_pressed = LEADER_PRESSED.load(Ordering::Relaxed);
+                let wparam = msg.wParam.0 as i32;
+                match handle_hotkey(wparam, &sender, leader_pressed) {
+                    Ok(leader) => {
+                        println!("leader after hotkey {}", leader);
+                        LEADER_PRESSED.store(leader, Ordering::Relaxed);
+                        println!("leader pressed updated");
+                    }
+                    Err(e) => {
+                        println!("Error {}", e);
+                        break;
                     }
                 }
             }
@@ -89,13 +87,25 @@ async fn key_listener(sender: Arc<Sender<WindowManagerMessage>>) {
 }
 
 fn main() -> Result<(), Error> {
-    let (sender, receiver) = channel::unbounded();
+    let (sender, receiver) = channel();
     let sender_arc = Arc::new(sender);
 
     let mut window_manager = WindowManager::new(receiver);
     window_manager.set_windows();
-    let key_listener = task::spawn(key_listener(sender_arc.clone()));
-    let window_listner = task::block_on(window_manager.start());
+    let window_manger_listener = thread::spawn(move || {
+        unsafe {
+            SetWinEventHook(
+                EVENT_SYSTEM_FOREGROUND,
+                EVENT_SYSTEM_FOREGROUND,
+                None,
+                Some(win_event_proc),
+                0,
+                0,
+                WINEVENT_OUTOFCONTEXT,
+            );
+        }
+        window_manager.start()
+    });
 
     unregister_leader();
     match register_leader() {
@@ -103,6 +113,9 @@ fn main() -> Result<(), Error> {
         Err(e) => println!("Failed to registrer leader: {}", e),
     }
 
+    key_listener(sender_arc.clone());
+
+    window_manger_listener.join().unwrap();
     unregister_leader();
     Ok(())
 }

@@ -4,11 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-winapi = {version="0.3", features=["windef", "minwindef","winuser","processthreadsapi","impl-default"]}
 lazy_static = "1.4.0"
-async-std = "1.9.0"
 
 [dependencies.windows]
 version = "0.54"
-features = ["Win32_UI_WindowsAndMessaging","Win32_Foundation","Win32_Graphics_Gdi","Win32_UI_Accessibility"]
+features = ["Win32_UI_WindowsAndMessaging","Win32_Foundation","Win32_Graphics_Gdi","Win32_UI_Accessibility","Win32_UI_Input_KeyboardAndMouse"]
 
