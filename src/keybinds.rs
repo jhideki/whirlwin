@@ -1,10 +1,13 @@
 use crate::window_manager::{Direction, WindowManagerMessage};
+use crate::EXIT_PROGRAM;
 use std::io::Error;
+use std::process;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     RegisterHotKey, UnregisterHotKey, HOT_KEY_MODIFIERS,
 };
+use windows::Win32::UI::WindowsAndMessaging::PostMessageW;
 
 //Hotkey indentifies
 const EXIT: i32 = 1;
@@ -27,7 +30,6 @@ const KEY_D: u32 = 0x44;
 const KEY_P: u32 = 0x50;
 const ESC: u32 = 0x1B;
 const SPACE: u32 = 0x20;
-const SHIFT: u32 = 0xA0;
 
 pub fn handle_hotkey(
     wparam: i32,
@@ -43,6 +45,9 @@ pub fn handle_hotkey(
     if leader_pressed {
         match wparam {
             EXIT => {
+                if let Err(_err) = unsafe { PostMessageW(None, EXIT_PROGRAM, None, None) } {
+                    process::exit(0);
+                }
                 if let Err(err) = sender.send(WindowManagerMessage::EndListener) {
                     return Err(format!("Failed to send message: {}", err));
                 }

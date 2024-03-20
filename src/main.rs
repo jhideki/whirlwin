@@ -5,30 +5,23 @@ mod window_manager;
 
 use callbacks::win_event_proc;
 use keybinds::{handle_hotkey, register_leader, unregister_leader};
-use lazy_static::lazy_static;
+use window_manager::{WindowManager, WindowManagerMessage};
+
 use std::io::Error;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{channel, Receiver, Sender};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::mpsc::{channel, Sender};
+use std::sync::Arc;
 use std::thread;
 use windows::Win32::UI::Accessibility::SetWinEventHook;
 use windows::Win32::UI::WindowsAndMessaging::{
-    DispatchMessageW, GetForegroundWindow, GetMessageW, TranslateMessage, EVENT_SYSTEM_FOREGROUND,
-    MSG, WINEVENT_OUTOFCONTEXT, WM_HOTKEY,
+    DispatchMessageW, GetMessageW, TranslateMessage, EVENT_SYSTEM_FOREGROUND, MSG,
+    WINEVENT_OUTOFCONTEXT, WM_HOTKEY, WM_USER,
 };
 
-use window::Window;
-use window_manager::{WindowManager, WindowManagerMessage};
-
-//I couldn't think of a better way to signal the window manager from the event hook
 static LEADER_PRESSED: AtomicBool = AtomicBool::new(false);
-static NEW_FOREGROUND_SET: AtomicBool = AtomicBool::new(false);
-lazy_static! {
-    static ref CALLBACK_CONDVAR: Condvar = Condvar::new();
-    static ref CALLBACK_CALLED: Mutex<bool> = Mutex::new(false);
-}
+const NEW_FOREGROUND_SET: u32 = WM_USER + 1;
 
-fn handle_callback(sender: Arc<Sender<WindowManagerMessage>>) {
+fn spawn_hook(sender: Arc<Sender<WindowManagerMessage>>) {
     unsafe {
         SetWinEventHook(
             EVENT_SYSTEM_FOREGROUND,
@@ -40,26 +33,23 @@ fn handle_callback(sender: Arc<Sender<WindowManagerMessage>>) {
             WINEVENT_OUTOFCONTEXT,
         );
     }
-    loop {
-        let mut msg: MSG = MSG::default();
-        unsafe {
-            if !GetMessageW(&mut msg, None, 0, 0).as_bool() {
-                break;
+
+    let mut msg: MSG = MSG::default();
+    unsafe {
+        loop {
+            if GetMessageW(&mut msg, None, 0, 0).into() {
+                if msg.message == NEW_FOREGROUND_SET {
+                    if let Err(err) = sender.send(WindowManagerMessage::SetCurrent) {
+                        println!("{}", err);
+                    }
+                    if let Err(err) = sender.send(WindowManagerMessage::SetWindows) {
+                        println!("{}", err);
+                    }
+                }
             }
             TranslateMessage(&msg);
             DispatchMessageW(&msg);
         }
-        /*if NEW_FOREGROUND_SET.load(Ordering::Relaxed) {
-            let mut gaurd = window_manager.lock().unwrap();
-            //Check if a new foreground has been set without using the hotkeys
-            gaurd.clear_windows();
-            gaurd.set_windows();
-            unsafe {
-                gaurd.current = Window::new(GetForegroundWindow(), 0);
-            }
-            println!("new foreground set through clicking");
-            NEW_FOREGROUND_SET.store(false, Ordering::Relaxed);
-        }*/
     }
 }
 
@@ -92,20 +82,11 @@ fn main() -> Result<(), Error> {
 
     let mut window_manager = WindowManager::new(receiver);
     window_manager.set_windows();
-    let window_manger_listener = thread::spawn(move || {
-        unsafe {
-            SetWinEventHook(
-                EVENT_SYSTEM_FOREGROUND,
-                EVENT_SYSTEM_FOREGROUND,
-                None,
-                Some(win_event_proc),
-                0,
-                0,
-                WINEVENT_OUTOFCONTEXT,
-            );
-        }
-        window_manager.start()
-    });
+    let window_manger_listener = thread::spawn(move || window_manager.start());
+    let callback_listener = {
+        let sender = Arc::clone(&sender_arc);
+        thread::spawn(move || spawn_hook(sender))
+    };
 
     unregister_leader();
     match register_leader() {
@@ -113,9 +94,11 @@ fn main() -> Result<(), Error> {
         Err(e) => println!("Failed to registrer leader: {}", e),
     }
 
-    key_listener(sender_arc.clone());
+    key_listener(Arc::clone(&sender_arc));
 
     window_manger_listener.join().unwrap();
+    println!("callback listenern joined");
+    callback_listener.join().unwrap();
     unregister_leader();
     Ok(())
 }

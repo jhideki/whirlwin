@@ -21,6 +21,7 @@ pub enum WindowManagerMessage {
     SwitchToPrevious,
     SwitchToDirection(Direction),
     EndListener,
+    SetCurrent,
 }
 
 pub struct WindowManager {
@@ -64,9 +65,14 @@ impl WindowManager {
                     self.switch_to_direction(direction)
                 }
                 WindowManagerMessage::ClearWindows => self.clear_windows(),
+                WindowManagerMessage::SetCurrent => self.set_current(),
                 WindowManagerMessage::EndListener => break,
             }
         }
+    }
+
+    fn set_current(&mut self) {
+        self.current = unsafe { Window::new(GetForegroundWindow(), 0) };
     }
 
     pub fn set_window(&mut self, window: Window) {

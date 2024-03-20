@@ -1,12 +1,13 @@
 use crate::window::Window;
 use crate::window_manager::WindowManager;
-use crate::{CALLBACK_CALLED, CALLBACK_CONDVAR, LEADER_PRESSED, NEW_FOREGROUND_SET};
+use crate::{LEADER_PRESSED, NEW_FOREGROUND_SET};
 use std::sync::atomic::Ordering;
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
 use windows::Win32::UI::Accessibility::HWINEVENTHOOK;
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetWindowTextW, IsWindowVisible, EVENT_SYSTEM_FOREGROUND,
+    GetWindowTextW, IsWindowVisible, PostMessageW, EVENT_SYSTEM_FOREGROUND,
 };
+
 //Checks if leader is pressed and signals window manager to re enumerate windows
 pub unsafe extern "system" fn win_event_proc(
     _: HWINEVENTHOOK,
@@ -18,14 +19,11 @@ pub unsafe extern "system" fn win_event_proc(
     _: u32,
 ) {
     println!("callback called");
-    let mut finished = CALLBACK_CALLED.lock().unwrap();
     let leader_pressed = LEADER_PRESSED.load(Ordering::Acquire);
     if event == EVENT_SYSTEM_FOREGROUND && !leader_pressed {
+        let _ = PostMessageW(None, NEW_FOREGROUND_SET, None, None);
         println!("leader in callback {}", leader_pressed);
-        NEW_FOREGROUND_SET.store(true, Ordering::Relaxed);
     }
-    *finished = true;
-    CALLBACK_CONDVAR.notify_one();
 
     println!("callback finisehd");
 }
