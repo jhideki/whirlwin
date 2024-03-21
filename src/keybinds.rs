@@ -1,13 +1,12 @@
 use crate::window_manager::{Direction, WindowManagerMessage};
-use crate::EXIT_PROGRAM;
+
 use std::io::Error;
-use std::process;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
+
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     RegisterHotKey, UnregisterHotKey, HOT_KEY_MODIFIERS,
 };
-use windows::Win32::UI::WindowsAndMessaging::PostMessageW;
 
 //Hotkey indentifies
 const EXIT: i32 = 1;
@@ -45,9 +44,6 @@ pub fn handle_hotkey(
     if leader_pressed {
         match wparam {
             EXIT => {
-                if let Err(_err) = unsafe { PostMessageW(None, EXIT_PROGRAM, None, None) } {
-                    process::exit(0);
-                }
                 if let Err(err) = sender.send(WindowManagerMessage::EndListener) {
                     return Err(format!("Failed to send message: {}", err));
                 }
@@ -116,7 +112,7 @@ pub fn register_leader() -> Result<(), Error> {
 
 pub fn unregister_leader() {
     unsafe {
-        UnregisterHotKey(None, LEADER);
+        let _ = UnregisterHotKey(None, LEADER);
     }
 }
 fn register_hotkeys() -> Result<(), Error> {
@@ -158,14 +154,14 @@ fn register_hotkeys() -> Result<(), Error> {
 
 pub fn unregister_hotkeys() {
     unsafe {
-        UnregisterHotKey(None, EXIT);
-        UnregisterHotKey(None, SWITCH_LEFT);
-        UnregisterHotKey(None, SWITCH_RIGHT);
-        UnregisterHotKey(None, SWITCH_ABOVE);
-        UnregisterHotKey(None, SWITCH_BELOW);
-        UnregisterHotKey(None, SWITCH_NEXT);
-        UnregisterHotKey(None, CLOSE_WINDOW);
-        UnregisterHotKey(None, SWITCH_PREVIOUS);
+        let _ = UnregisterHotKey(None, EXIT);
+        let _ = UnregisterHotKey(None, SWITCH_LEFT);
+        let _ = UnregisterHotKey(None, SWITCH_RIGHT);
+        let _ = UnregisterHotKey(None, SWITCH_ABOVE);
+        let _ = UnregisterHotKey(None, SWITCH_BELOW);
+        let _ = UnregisterHotKey(None, SWITCH_NEXT);
+        let _ = UnregisterHotKey(None, CLOSE_WINDOW);
+        let _ = UnregisterHotKey(None, SWITCH_PREVIOUS);
     }
 }
 

@@ -27,8 +27,8 @@ impl Window {
         let mut placement: WINDOWPLACEMENT = WINDOWPLACEMENT::default();
         let mut info: WINDOWINFO = WINDOWINFO::default();
         unsafe {
-            GetWindowPlacement(hwnd, &mut placement);
-            GetWindowInfo(hwnd, &mut info);
+            let _ = GetWindowPlacement(hwnd, &mut placement);
+            let _ = GetWindowInfo(hwnd, &mut info);
         }
         Self {
             hwnd,
@@ -43,7 +43,7 @@ impl Window {
     fn set_rect(hwnd: HWND, info: WINDOWINFO) -> Rect {
         let mut rect: RECT = RECT::default();
         unsafe {
-            GetWindowRect(hwnd, &mut rect);
+            let _ = GetWindowRect(hwnd, &mut rect);
         }
         Rect {
             right: rect.right - info.cxWindowBorders as i32,

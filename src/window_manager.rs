@@ -2,10 +2,10 @@ use crate::callbacks::enum_windows_proc;
 use crate::window::Window;
 
 use std::sync::mpsc::Receiver;
-use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
+use windows::Win32::Foundation::{HWND, LPARAM};
 use windows::Win32::UI::WindowsAndMessaging::{
-    CloseWindow, EnumWindows, GetForegroundWindow, SendMessageW, SetForegroundWindow, SetWindowPos,
-    HWND_BOTTOM, SWP_NOMOVE, SWP_NOSIZE, WM_CLOSE,
+    CloseWindow, EnumWindows, GetForegroundWindow, SetForegroundWindow, SetWindowPos, HWND_BOTTOM,
+    SWP_NOMOVE, SWP_NOSIZE,
 };
 pub enum Direction {
     Left,
@@ -55,7 +55,6 @@ impl WindowManager {
 
     pub fn start(mut self) {
         while let Ok(message) = self.receiver.recv() {
-            println!("message received in window_manager");
             match message {
                 WindowManagerMessage::SetWindows => self.set_windows(),
                 WindowManagerMessage::CloseWindow => self.close_window(),
@@ -90,23 +89,14 @@ impl WindowManager {
     }
 
     fn switch_to_direction(&mut self, direction: Direction) {
-        let mut option = None;
-        match direction {
-            Direction::Left => {
-                option = Some(self.left.take());
-            }
-            Direction::Right => {
-                option = Some(self.right.take());
-            }
-            Direction::Below => {
-                option = Some(self.below.take());
-            }
-            Direction::Above => {
-                option = Some(self.above.take());
-            }
-        }
+        let window = match direction {
+            Direction::Left => self.left.take(),
+            Direction::Right => self.right.take(),
+            Direction::Below => self.below.take(),
+            Direction::Above => self.above.take(),
+        };
 
-        if let Some(window) = option.unwrap() {
+        if let Some(window) = window {
             unsafe {
                 if !SetForegroundWindow(window.hwnd).as_bool() {
                     println!("Failed to switch windows");
@@ -120,8 +110,9 @@ impl WindowManager {
 
     pub fn close_window(&mut self) {
         unsafe {
-            //CloseWindow(self.current.hwnd);
-            SendMessageW(self.current.hwnd, WM_CLOSE, WPARAM(0), LPARAM(0));
+            if let Err(e) = CloseWindow(self.current.hwnd) {
+                println!("Failed to close window {}", e);
+            }
         }
         if let Some(window) = &self.next {
             self.current = window.to_owned();
@@ -130,24 +121,10 @@ impl WindowManager {
         }
     }
 
-    /*fn print_window_info(window: &Window) {
-        println!("order: {}", window.order);
-        println!("flags {}", window.placement.flags);
-        println!("dwStyle {}", window.info.dwStyle);
-        println!("creator version{}", window.info.wCreatorVersion);
-        println!("atom {}", window.info.atomWindowType);
-        println!("visibility {}", unsafe { IsWindowVisible(window.hwnd) });
-        println!("border width {}", window.info.cxWindowBorders);
-        println!("cmd {}", window.placement.showCmd);
-        println!("left {}", window.rect.left);
-        println!("right {}", window.rect.right);
-        println!("bottom {}", window.rect.bottom);
-        println!("top {}", window.rect.top);
-        println!("");
-    }*/
+    #[allow(dead_code)]
     pub fn print_windows(&mut self) {
         println!("current");
-        &self.current.print_title();
+        let _ = &self.current.print_title();
         println!("");
 
         print!("left");
@@ -188,7 +165,7 @@ impl WindowManager {
 
     pub fn set_windows(&mut self) {
         unsafe {
-            EnumWindows(
+            let _ = EnumWindows(
                 Some(enum_windows_proc),
                 LPARAM(self as *mut WindowManager as isize),
             );
@@ -222,7 +199,7 @@ impl WindowManager {
             window.print_title();
             unsafe {
                 SetForegroundWindow(window.hwnd);
-                SetWindowPos(
+                if let Err(e) = SetWindowPos(
                     self.current.hwnd,
                     HWND_BOTTOM,
                     0,
@@ -230,7 +207,9 @@ impl WindowManager {
                     0,
                     0,
                     SWP_NOMOVE | SWP_NOSIZE,
-                );
+                ) {
+                    println!("Switch to next {}: ", e);
+                }
             }
             if let Some(hwnd) = self.stack_bottom {
                 if hwnd == window.hwnd {
@@ -248,20 +227,5 @@ impl WindowManager {
             self.current = window;
         };
     }
-}
-
-#[macro_export]
-macro_rules! switch_to_direction {
-    ($window_manager:expr, $direction:ident) => {
-        if let Some(window) = $window_manager.$direction.take() {
-            if SetForegroundWindow(window.hwnd) == 0 {
-                println!("Failed to switch windows");
-            }
-            $window_manager.clear_windows();
-            $window_manager.current = window;
-            $window_manager.set_windows();
-            println!("Switch to window {}", stringify!($direction));
-        }
-    };
 }
 

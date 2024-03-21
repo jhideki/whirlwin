@@ -8,7 +8,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     GetWindowTextW, IsWindowVisible, PostMessageW, EVENT_SYSTEM_FOREGROUND,
 };
 
-//Checks if leader is pressed and signals window manager to re enumerate windows
+//Used to update window_manager when user does not use whirlwin
 pub unsafe extern "system" fn win_event_proc(
     _: HWINEVENTHOOK,
     event: u32,
@@ -18,14 +18,10 @@ pub unsafe extern "system" fn win_event_proc(
     _: u32,
     _: u32,
 ) {
-    println!("callback called");
     let leader_pressed = LEADER_PRESSED.load(Ordering::Acquire);
     if event == EVENT_SYSTEM_FOREGROUND && !leader_pressed {
         let _ = PostMessageW(None, NEW_FOREGROUND_SET, None, None);
-        println!("leader in callback {}", leader_pressed);
     }
-
-    println!("callback finisehd");
 }
 
 pub unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {

@@ -12,16 +12,23 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
 use std::sync::Arc;
 use std::thread;
+
+use crossbeam_channel;
+use windows::Win32::System::Threading::GetCurrentThreadId;
 use windows::Win32::UI::Accessibility::SetWinEventHook;
 use windows::Win32::UI::WindowsAndMessaging::{
-    DispatchMessageW, GetMessageW, TranslateMessage, EVENT_SYSTEM_FOREGROUND, MSG,
-    WINEVENT_OUTOFCONTEXT, WM_HOTKEY, WM_USER,
+    DispatchMessageW, GetMessageW, PostThreadMessageW, TranslateMessage, EVENT_SYSTEM_FOREGROUND,
+    MSG, WINEVENT_OUTOFCONTEXT, WM_HOTKEY, WM_USER,
 };
 
 static LEADER_PRESSED: AtomicBool = AtomicBool::new(false);
 const NEW_FOREGROUND_SET: u32 = WM_USER + 1;
+const EXIT_PROGRAM: u32 = WM_USER + 2;
 
-fn spawn_hook(sender: Arc<Sender<WindowManagerMessage>>) {
+fn spawn_hook(
+    sender: Arc<Sender<WindowManagerMessage>>,
+    thread_id_sender: crossbeam_channel::Sender<u32>,
+) {
     unsafe {
         SetWinEventHook(
             EVENT_SYSTEM_FOREGROUND,
@@ -33,18 +40,28 @@ fn spawn_hook(sender: Arc<Sender<WindowManagerMessage>>) {
             WINEVENT_OUTOFCONTEXT,
         );
     }
+    let thread_id = unsafe { GetCurrentThreadId() };
+    if let Err(e) = thread_id_sender.send(thread_id) {
+        println!("Error sending thread id {}", e);
+    }
 
     let mut msg: MSG = MSG::default();
-    unsafe {
-        loop {
+    loop {
+        unsafe {
             if GetMessageW(&mut msg, None, 0, 0).into() {
                 if msg.message == NEW_FOREGROUND_SET {
+                    println!("new foreground set in handle_callback");
+                    if let Err(err) = sender.send(WindowManagerMessage::ClearWindows) {
+                        println!("{}", err);
+                    }
                     if let Err(err) = sender.send(WindowManagerMessage::SetCurrent) {
                         println!("{}", err);
                     }
                     if let Err(err) = sender.send(WindowManagerMessage::SetWindows) {
                         println!("{}", err);
                     }
+                } else if msg.message == EXIT_PROGRAM {
+                    break;
                 }
             }
             TranslateMessage(&msg);
@@ -53,7 +70,7 @@ fn spawn_hook(sender: Arc<Sender<WindowManagerMessage>>) {
     }
 }
 
-fn key_listener(sender: Arc<Sender<WindowManagerMessage>>) {
+fn key_listener(sender: Arc<Sender<WindowManagerMessage>>, callback_thread_id: u32) {
     unsafe {
         let mut msg: MSG = MSG::default();
         while GetMessageW(&mut msg, None, 0, 0).into() {
@@ -62,11 +79,14 @@ fn key_listener(sender: Arc<Sender<WindowManagerMessage>>) {
                 let wparam = msg.wParam.0 as i32;
                 match handle_hotkey(wparam, &sender, leader_pressed) {
                     Ok(leader) => {
-                        println!("leader after hotkey {}", leader);
                         LEADER_PRESSED.store(leader, Ordering::Relaxed);
-                        println!("leader pressed updated");
                     }
                     Err(e) => {
+                        if let Err(e) =
+                            PostThreadMessageW(callback_thread_id, EXIT_PROGRAM, None, None)
+                        {
+                            println!("error sending thread message {}", e);
+                        }
                         println!("Error {}", e);
                         break;
                     }
@@ -83,21 +103,24 @@ fn main() -> Result<(), Error> {
     let mut window_manager = WindowManager::new(receiver);
     window_manager.set_windows();
     let window_manger_listener = thread::spawn(move || window_manager.start());
-    let callback_listener = {
-        let sender = Arc::clone(&sender_arc);
-        thread::spawn(move || spawn_hook(sender))
-    };
 
-    unregister_leader();
     match register_leader() {
         Ok(()) => println!("Leader Registered"),
         Err(e) => println!("Failed to registrer leader: {}", e),
     }
 
-    key_listener(Arc::clone(&sender_arc));
+    //Channel used for retreiving thread id of callback listener
+    let (callback_sender, callback_receiver) = crossbeam_channel::unbounded();
+    let callback_listener = {
+        let thread_id_sender = callback_sender.clone();
+        let sender = Arc::clone(&sender_arc);
+        thread::spawn(move || spawn_hook(sender, thread_id_sender))
+    };
+    let callback_thread_id = callback_receiver.recv().unwrap();
+
+    key_listener(Arc::clone(&sender_arc), callback_thread_id);
 
     window_manger_listener.join().unwrap();
-    println!("callback listenern joined");
     callback_listener.join().unwrap();
     unregister_leader();
     Ok(())
