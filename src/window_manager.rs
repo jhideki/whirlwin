@@ -119,6 +119,7 @@ impl WindowManager {
             self.clear_windows();
             self.set_windows();
         }
+        self.print_windows();
     }
 
     #[allow(dead_code)]

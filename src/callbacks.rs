@@ -1,6 +1,6 @@
 use crate::window::Window;
 use crate::window_manager::WindowManager;
-use crate::{LEADER_PRESSED, NEW_FOREGROUND_SET};
+use crate::{HOTKEY_PRESSED, NEW_FOREGROUND_SET};
 use std::sync::atomic::Ordering;
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
 use windows::Win32::UI::Accessibility::HWINEVENTHOOK;
@@ -18,10 +18,12 @@ pub unsafe extern "system" fn win_event_proc(
     _: u32,
     _: u32,
 ) {
-    let leader_pressed = LEADER_PRESSED.load(Ordering::Acquire);
-    if event == EVENT_SYSTEM_FOREGROUND && !leader_pressed {
+    let hotkey_pressed = HOTKEY_PRESSED.load(Ordering::Relaxed);
+    if event == EVENT_SYSTEM_FOREGROUND && !hotkey_pressed {
         let _ = PostMessageW(None, NEW_FOREGROUND_SET, None, None);
     }
+
+    HOTKEY_PRESSED.store(false, Ordering::Relaxed);
 }
 
 pub unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {

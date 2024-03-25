@@ -21,7 +21,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     MSG, WINEVENT_OUTOFCONTEXT, WM_HOTKEY, WM_USER,
 };
 
-static LEADER_PRESSED: AtomicBool = AtomicBool::new(false);
+static HOTKEY_PRESSED: AtomicBool = AtomicBool::new(false);
 const NEW_FOREGROUND_SET: u32 = WM_USER + 1;
 const EXIT_PROGRAM: u32 = WM_USER + 2;
 
@@ -50,7 +50,6 @@ fn spawn_hook(
         unsafe {
             if GetMessageW(&mut msg, None, 0, 0).into() {
                 if msg.message == NEW_FOREGROUND_SET {
-                    println!("new foreground set in handle_callback");
                     if let Err(err) = sender.send(WindowManagerMessage::ClearWindows) {
                         println!("{}", err);
                     }
@@ -71,15 +70,17 @@ fn spawn_hook(
 }
 
 fn key_listener(sender: Arc<Sender<WindowManagerMessage>>, callback_thread_id: u32) {
+    println!("key listener running...");
+    let mut leader_pressed = false;
     unsafe {
         let mut msg: MSG = MSG::default();
         while GetMessageW(&mut msg, None, 0, 0).into() {
             if msg.message == WM_HOTKEY {
-                let leader_pressed = LEADER_PRESSED.load(Ordering::Relaxed);
+                HOTKEY_PRESSED.store(true, Ordering::Relaxed);
                 let wparam = msg.wParam.0 as i32;
                 match handle_hotkey(wparam, &sender, leader_pressed) {
                     Ok(leader) => {
-                        LEADER_PRESSED.store(leader, Ordering::Relaxed);
+                        leader_pressed = leader;
                     }
                     Err(e) => {
                         if let Err(e) =
