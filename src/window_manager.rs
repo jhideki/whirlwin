@@ -1,6 +1,7 @@
 use crate::callbacks::enum_windows_proc;
 use crate::window::Window;
 
+use std::collections::HashSet;
 use std::sync::mpsc::Receiver;
 use windows::Win32::Foundation::{HWND, LPARAM};
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -26,18 +27,23 @@ pub enum WindowManagerMessage {
 
 pub struct WindowManager {
     pub current: Window,
-    pub left: Option<Window>,
-    pub right: Option<Window>,
-    pub below: Option<Window>,
-    pub above: Option<Window>,
+    left: Option<Window>,
+    right: Option<Window>,
+    below: Option<Window>,
+    above: Option<Window>,
     next: Option<Window>,
     window_stack: Vec<Window>, // keep track of prevous windows
     stack_bottom: Option<HWND>,
     pub count: i32, // corresponds to order in window struct
     receiver: Receiver<WindowManagerMessage>,
+    pub blacklist: HashSet<String>, //window titles that will not be managed
 }
 impl WindowManager {
     pub fn new(receiver: Receiver<WindowManagerMessage>) -> WindowManager {
+        let mut names = HashSet::new();
+        names.insert("Windows Input Experience".to_string());
+        names.insert("Program Manager".to_string());
+        names.insert("Settings".to_string());
         let current = unsafe { Window::new(GetForegroundWindow(), 0) };
         WindowManager {
             current,
@@ -50,6 +56,7 @@ impl WindowManager {
             stack_bottom: None,
             count: 0,
             receiver: receiver,
+            blacklist: names,
         }
     }
 
@@ -75,6 +82,7 @@ impl WindowManager {
     }
 
     pub fn set_window(&mut self, window: Window) {
+        window.print_title();
         if self.left.is_none() && window.rect.right <= self.current.rect.left {
             self.left = Some(window);
         } else if self.right.is_none() && window.rect.left >= self.current.rect.right {
@@ -108,7 +116,7 @@ impl WindowManager {
         }
     }
 
-    pub fn close_window(&mut self) {
+    fn close_window(&mut self) {
         unsafe {
             if let Err(e) = CloseWindow(self.current.hwnd) {
                 println!("Failed to close window {}", e);
@@ -116,10 +124,8 @@ impl WindowManager {
         }
         if let Some(window) = &self.next {
             self.current = window.to_owned();
-            self.clear_windows();
             self.set_windows();
         }
-        self.print_windows();
     }
 
     #[allow(dead_code)]
@@ -165,6 +171,7 @@ impl WindowManager {
     }
 
     pub fn set_windows(&mut self) {
+        println!("");
         unsafe {
             let _ = EnumWindows(
                 Some(enum_windows_proc),
@@ -227,6 +234,7 @@ impl WindowManager {
             }
             self.current = window;
         };
+        self.set_windows();
     }
 }
 

@@ -105,6 +105,7 @@ fn main() -> Result<(), Error> {
     window_manager.set_windows();
     let window_manger_listener = thread::spawn(move || window_manager.start());
 
+    unregister_leader();
     match register_leader() {
         Ok(()) => println!("Leader Registered"),
         Err(e) => println!("Failed to registrer leader: {}", e),

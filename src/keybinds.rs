@@ -28,7 +28,9 @@ const KEY_N: u32 = 0x4E;
 const KEY_D: u32 = 0x44;
 const KEY_P: u32 = 0x50;
 const ESC: u32 = 0x1B;
+const SHIFT: u32 = 0x10;
 const SPACE: u32 = 0x20;
+const CAPS: u32 = 0x14;
 
 pub fn handle_hotkey(
     wparam: i32,
@@ -36,6 +38,7 @@ pub fn handle_hotkey(
     leader_pressed: bool,
 ) -> Result<bool, String> {
     if !leader_pressed && wparam == LEADER {
+        println!("leader pressed");
         match register_hotkeys() {
             Ok(_) => return Ok(true),
             Err(e) => return Err(format!("Error: {}", e)),
@@ -103,7 +106,7 @@ pub fn handle_hotkey(
 }
 pub fn register_leader() -> Result<(), Error> {
     unsafe {
-        if let Err(e) = RegisterHotKey(None, LEADER, HOT_KEY_MODIFIERS(4), SPACE) {
+        if let Err(e) = RegisterHotKey(None, LEADER, HOT_KEY_MODIFIERS(1), CAPS) {
             println!("{}", e);
         }
     }

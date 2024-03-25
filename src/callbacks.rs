@@ -37,7 +37,7 @@ pub unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> B
         //SW_HIDE and SW_SHOWMINIMIZED
         if window.placement.showCmd != 0 && window.placement.showCmd != 2 {
             if let Some(title) = window.get_title() {
-                if title != "Windows Input Experience" {
+                if !window_manager.blacklist.contains(&title) {
                     window_manager.set_window(window);
                 }
             }
