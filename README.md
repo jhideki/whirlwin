@@ -1,4 +1,4 @@
-# Whilwin
+# Whirlwin
 
 A simple and lightweight alternative to the Windows Alt+Tab switcher, built in Rust.
 
@@ -13,7 +13,6 @@ A simple and lightweight alternative to the Windows Alt+Tab switcher, built in R
 1. Download the latest release from the Releases tab.
 2. Extract the archive and run the executable file.
 
-**Installation**
    
 ## Usage
 The leader key allows the user to enter hotkey mode providing access to other keybinds.
