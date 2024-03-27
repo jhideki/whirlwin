@@ -30,6 +30,7 @@ const KEY_P: u32 = 0x50;
 const ESC: u32 = 0x1B;
 const SHIFT: u32 = 0x10;
 const SPACE: u32 = 0x20;
+const ENTER: u32 = 0x0D;
 const CAPS: u32 = 0x14;
 
 pub fn handle_hotkey(
@@ -106,7 +107,7 @@ pub fn handle_hotkey(
 }
 pub fn register_leader() -> Result<(), Error> {
     unsafe {
-        if let Err(e) = RegisterHotKey(None, LEADER, HOT_KEY_MODIFIERS(1), CAPS) {
+        if let Err(e) = RegisterHotKey(None, LEADER, HOT_KEY_MODIFIERS(4 | 0x4000), ENTER) {
             println!("{}", e);
         }
     }
