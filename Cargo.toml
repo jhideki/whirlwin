@@ -1,12 +1,3 @@
-[package]
-name = "whirlwin"
-version = "0.1.0"
-edition = "2021"
+[workspace]
 
-[dependencies]
-crossbeam-channel = "0.5"
-
-[dependencies.windows]
-version = "0.54"
-features = ["Win32_UI_WindowsAndMessaging","Win32_Foundation","Win32_Graphics_Gdi","Win32_UI_Accessibility","Win32_UI_Input_KeyboardAndMouse", "Win32_System_Threading"]
-
+members = ["core","src-tauri"]
