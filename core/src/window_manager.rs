@@ -55,7 +55,7 @@ impl WindowManager {
             window_stack: Vec::new(),
             stack_bottom: None,
             count: 0,
-            receiver: receiver,
+            receiver,
             blacklist: names,
         }
     }
