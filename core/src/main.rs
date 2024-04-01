@@ -1,5 +1,6 @@
 mod callbacks;
 mod keybinds;
+mod user_config;
 mod window;
 mod window_manager;
 
@@ -7,7 +8,7 @@ use callbacks::win_event_proc;
 use keybinds::{handle_hotkey, register_leader, unregister_leader};
 use window_manager::{WindowManager, WindowManagerMessage};
 
-use std::io::Error;
+use std::error::Error;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
 use std::sync::Arc;
@@ -69,8 +70,12 @@ fn spawn_hook(
     }
 }
 
-fn key_listener(sender: Arc<Sender<WindowManagerMessage>>, callback_thread_id: u32) {
-    println!("key listener running...");
+fn key_listener(
+    sender: Arc<Sender<WindowManagerMessage>>,
+    callback_thread_id: u32,
+) -> Result<(), Box<dyn Error>> {
+    let config = user_config::read_config()?;
+
     let mut leader_pressed = false;
     unsafe {
         let mut msg: MSG = MSG::default();
@@ -78,7 +83,7 @@ fn key_listener(sender: Arc<Sender<WindowManagerMessage>>, callback_thread_id: u
             if msg.message == WM_HOTKEY {
                 HOTKEY_PRESSED.store(true, Ordering::Relaxed);
                 let wparam = msg.wParam.0 as i32;
-                match handle_hotkey(wparam, &sender, leader_pressed) {
+                match handle_hotkey(wparam, &sender, leader_pressed, &config) {
                     Ok(leader) => {
                         leader_pressed = leader;
                     }
@@ -95,9 +100,10 @@ fn key_listener(sender: Arc<Sender<WindowManagerMessage>>, callback_thread_id: u
             }
         }
     }
+    Ok(())
 }
 
-fn main() -> Result<(), Error> {
+fn main() -> Result<(), Box<dyn Error>> {
     let (sender, receiver) = channel();
     let sender_arc = Arc::new(sender);
 
@@ -118,8 +124,8 @@ fn main() -> Result<(), Error> {
         let sender = Arc::clone(&sender_arc);
         thread::spawn(move || spawn_hook(sender, thread_id_sender))
     };
-    let callback_thread_id = callback_receiver.recv().unwrap();
 
+    let callback_thread_id = callback_receiver.recv().unwrap();
     key_listener(Arc::clone(&sender_arc), callback_thread_id);
 
     window_manger_listener.join().unwrap();
@@ -127,4 +133,3 @@ fn main() -> Result<(), Error> {
     unregister_leader();
     Ok(())
 }
-

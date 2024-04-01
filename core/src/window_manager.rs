@@ -5,8 +5,8 @@ use std::collections::HashSet;
 use std::sync::mpsc::Receiver;
 use windows::Win32::Foundation::{HWND, LPARAM};
 use windows::Win32::UI::WindowsAndMessaging::{
-    CloseWindow, EnumWindows, GetForegroundWindow, SetForegroundWindow, SetWindowPos, HWND_BOTTOM,
-    SWP_NOMOVE, SWP_NOSIZE,
+    CloseWindow, EnumWindows, GetForegroundWindow, SendMessageW, SetForegroundWindow, SetWindowPos,
+    HWND_BOTTOM, SWP_NOMOVE, SWP_NOSIZE, WM_CLOSE,
 };
 pub enum Direction {
     Left,
@@ -118,9 +118,7 @@ impl WindowManager {
 
     fn close_window(&mut self) {
         unsafe {
-            if let Err(e) = CloseWindow(self.current.hwnd) {
-                println!("Failed to close window {}", e);
-            }
+            let _ = SendMessageW(self.current.hwnd, WM_CLOSE, None, None);
         }
         if let Some(window) = &self.next {
             self.current = window.to_owned();
@@ -237,4 +235,3 @@ impl WindowManager {
         self.set_windows();
     }
 }
-
