@@ -2,7 +2,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod config;
 
-use config::set_data;
+use config::Config;
+use config::{read_config, set_data};
+use serde::{Deserialize, Serialize};
 use std::process::{Child, Command};
 use std::sync::{Arc, Mutex};
 use tauri::api::dialog::FileDialogBuilder;
@@ -54,6 +56,15 @@ fn manage_core(core: State<'_, Arc<Mutex<CoreProcess>>>) -> String {
 }
 
 #[tauri::command]
+fn load_shortcut_data() -> String {
+    match read_config() {
+        Ok(config) => return serde_json::to_string(&config).expect("failed bud"),
+        Err(e) => println!("error reading config {}", e),
+    }
+    "failed to read config".to_string()
+}
+
+#[tauri::command]
 fn set_shortcut(shortcut_id: String) {
     let shortcut_id = match shortcut_id.parse::<usize>() {
         Ok(id) => id,
@@ -73,7 +84,11 @@ fn main() {
     let core = Arc::new(Mutex::new(CoreProcess::new()));
     tauri::Builder::default()
         .manage(core)
-        .invoke_handler(tauri::generate_handler![manage_core, set_shortcut])
+        .invoke_handler(tauri::generate_handler![
+            manage_core,
+            set_shortcut,
+            load_shortcut_data
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

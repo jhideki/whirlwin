@@ -7,7 +7,7 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 
 #[derive(Serialize, Deserialize)]
-struct Config {
+pub struct Config {
     programs: Vec<String>,
     keybinds: HashMap<String, u32>,
 }
@@ -37,7 +37,7 @@ pub fn set_data(shortcut: PathBuf, shortcut_num: usize) {
     println!("{:?}", shortcut);
     let mut path = match get_path() {
         Ok(path) => path,
-        Err(e) => return,
+        Err(_) => return,
     };
 
     path.push("config.json");
@@ -46,10 +46,11 @@ pub fn set_data(shortcut: PathBuf, shortcut_num: usize) {
         .write(true)
         .read(true)
         .create(true)
+        //.truncate(true)
         .open(&path)
     {
         Ok(file) => file,
-        Err(e) => {
+        Err(_) => {
             eprintln!("Error opening file");
             return;
         }
@@ -60,10 +61,12 @@ pub fn set_data(shortcut: PathBuf, shortcut_num: usize) {
         eprintln!("Failed to read user data from file: {}", e);
         return;
     }
+    println!("json data: {}", json_data);
 
     let mut config = match serde_json::from_str(&json_data) {
         Ok(data) => data,
-        Err(_) => {
+        Err(e) => {
+            println!("error: {}", e);
             println!("creating a new config!");
             Config::new()
         }
@@ -74,6 +77,33 @@ pub fn set_data(shortcut: PathBuf, shortcut_num: usize) {
     if let Err(e) = config.write_to_file(file) {
         eprintln!("Error writing to file: {}", e);
     }
+}
+
+pub fn read_config() -> Result<Config, Box<dyn Error>> {
+    let mut path = match get_path() {
+        Ok(path) => path,
+        Err(e) => return Err(e),
+    };
+    path.push("config.json");
+    println!("{:?}", path);
+    let mut file = match OpenOptions::new().read(true).open(&path) {
+        Ok(file) => file,
+        Err(e) => {
+            return Err(format!("Error opening file {}", e).into());
+        }
+    };
+
+    let mut json_data = String::new();
+    if let Err(e) = file.read_to_string(&mut json_data) {
+        return Err(format!("Failed to read user data from file {}", e).into());
+    }
+    println!("config in read_config() {}:", json_data);
+
+    let config = match serde_json::from_str(&json_data) {
+        Ok(data) => data,
+        Err(_) => Config::new(),
+    };
+    Ok(config)
 }
 
 fn get_path() -> Result<PathBuf, Box<dyn Error>> {

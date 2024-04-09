@@ -47,6 +47,13 @@ body {
     cursor: pointer;
     transition: background-color 0.3s ease;
 }
+.shortcut-text{
+    background-color: #007bff; /* Blue background color */
+    color: white; /* Text color */
+    padding: 5px 10px; /* Padding */
+    border-radius: 5px; /* Rounded corners */
+    margin-bottom: 5px; /* Margin between text nodes */
+}
 
 .shortcut-button button:hover {
     background-color: rgba(255, 255, 255, 0.2);
