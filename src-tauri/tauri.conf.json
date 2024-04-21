@@ -12,7 +12,15 @@
   },
   "tauri": {
     "allowlist": {
-      "all": false
+      "shell": {
+        "sidecar": true,
+        "scope": [
+          {
+            "name": "../target/x86_64-pc-windows-msvc/release/whirlwincore",
+            "sidecar": true
+          }
+        ]
+      }
     },
     "bundle": {
       "active": true,
@@ -21,7 +29,7 @@
       "deb": {
         "depends": []
       },
-      "externalBin": [],
+      "externalBin": ["../target/x86_64-pc-windows-msvc/release/whirlwincore"],
       "icon": [
         "icons/32x32.png",
         "icons/128x128.png",

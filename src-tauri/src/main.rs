@@ -2,17 +2,15 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod config;
 
-use config::Config;
 use config::{read_config, set_data};
-use serde::{Deserialize, Serialize};
-use std::process::{Child, Command};
 use std::sync::{Arc, Mutex};
 use tauri::api::dialog::FileDialogBuilder;
+use tauri::api::process::{Command, CommandChild};
 use tauri::State;
 
 struct CoreProcess {
     running: bool,
-    child: Option<Child>,
+    child: Option<CommandChild>,
 }
 
 impl CoreProcess {
@@ -24,17 +22,18 @@ impl CoreProcess {
     }
     fn start(&mut self) {
         if self.child.is_none() {
-            let child = Command::new(r"..\target\release\whirlwin.exe")
+            let child = Command::new_sidecar("whirlwincore")
+                .expect("failed to spawn sidecare")
                 .spawn()
                 .expect("Failed to start whirlwin");
-            self.child = Some(child);
+            self.child = Some(child.1);
         } else {
             println!("whirlwin is already running");
         }
     }
     fn stop(&mut self) {
         println!("whirlwin stopped");
-        if let Some(mut child) = self.child.take() {
+        if let Some(child) = self.child.take() {
             child.kill().expect("Failed to kill whirlwin");
         }
     }
